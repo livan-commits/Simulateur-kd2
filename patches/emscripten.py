@@ -4,7 +4,7 @@ from pathlib import Path
 import shutil
 import sys
 
-sdk = Path(sys.argv[1])
+sdk = Path(sys.argv[1]).resolve()
 project = Path(__file__).resolve().parents[1]
 
 # Use the same upstream QP/C 8.1.4 POSIX host port as the native simulator.
