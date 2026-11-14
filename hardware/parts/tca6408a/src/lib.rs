@@ -214,6 +214,7 @@ esp_part::export_part!(Tca6408a, buffer = 512);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use esp_part::Payload;
 
     fn configured() -> Tca6408a {
         let mut device = Tca6408a::default();
