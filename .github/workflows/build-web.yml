@@ -84,6 +84,7 @@ jobs:
           assert "CONFIG_ESP_CONSOLE_UART_DEFAULT=y" in cfg
           assert not any(line.startswith("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=") and line.endswith("=y") for line in cfg.splitlines())
           assert "CONFIG_ESP_CONSOLE_UART=y" in cfg
+          PY
 
       - name: Export KGUI framebuffer symbols from the real firmware ELF
         shell: bash
@@ -91,8 +92,8 @@ jobs:
           set -euo pipefail
           python3 -m venv /tmp/elf-tools
           /tmp/elf-tools/bin/pip install pyelftools
-          /tmp/elf-tools/bin/python patches/export_framebuffer_symbols.py upstream/build/kodeos.elf upstream/build/framebuffer-symbols.json
-          test -s upstream/build/framebuffer-symbols.json
+          /tmp/elf-tools/bin/python patches/export_framebuffer_symbols.py upstream/build/kodeos.elf framebuffer-symbols.json
+          test -s framebuffer-symbols.json
 
       - name: Download ESP-EMU v1.0.0 browser runtime
         shell: bash
@@ -179,7 +180,7 @@ jobs:
         run: |
           mkdir -p dist/firmware
           cp upstream/build/kodeos-flash.bin dist/firmware/
-          cp upstream/build/framebuffer-symbols.json dist/framebuffer-symbols.json
+          cp framebuffer-symbols.json dist/framebuffer-symbols.json
           cp web/index.html dist/index.html
           touch dist/.nojekyll
 
