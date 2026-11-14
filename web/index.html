@@ -282,6 +282,10 @@
         log("[emu] Firmware fusionné chargé (" + firmware.length.toLocaleString("fr-FR") + " octets)");
         emu.load_default_rom();
         await emu.load_firmware(firmware);
+        // ESP-EMU v1.0.0 exposes the UART RX bridge as uart_input(Uint8Array).
+        // This is the real console input path used for KodeOS time sync and screenshots.
+        const encoder = new TextEncoder();
+        uartSend = (text) => emu.uart_input(encoder.encode(text));
 
         boardWorker = new Worker("./esp-emu/part-worker.js", { type: "module" });
         const channel = new MessageChannel();
