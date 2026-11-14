@@ -4,13 +4,13 @@ Date de vérification : 2026-11-14
 
 ## Références exactes vérifiées
 
-- Dépôt amont : [kodediy/KodeOS](https://github.com/kodediy/KodeOS), branche `develop`.
+- Dépôt amont : [kodediy/KodeOS](https://github.com/kodediy/KodeOS), commit épinglé `9bcfdb71b763ee7b5c14106358643ea611fc97db`.
 - Sous-module `sdk` déclaré par KodeOS : [kodediy/kode-sdk](https://github.com/kodediy/kode-sdk/tree/1841cc8c13d4b2e3e4d7288b40cdac5de207a133).
-- Commit du SDK effectivement référencé par le gitlink `sdk` de KodeOS/develop : `1841cc8c13d4b2e3e4d7288b40cdac5de207a133`.
-- Simulateur KGUI amont : [components/kgui/sim](https://github.com/kodediy/KodeOS/tree/develop/components/kgui/sim).
+- Commit du SDK vérifié dans le checkout de ce projet : `1841cc8c13d4b2e3e4d7288b40cdac5de207a133`.
+- Simulateur KGUI amont : [components/kgui/sim au commit épinglé](https://github.com/kodediy/KodeOS/tree/9bcfdb71b763ee7b5c14106358643ea611fc97db/components/kgui/sim).
 - Simulateur KUI amont : [components/kui/sim au commit épinglé](https://github.com/kodediy/kode-sdk/tree/1841cc8c13d4b2e3e4d7288b40cdac5de207a133/components/kui/sim).
 
-Le workflow récupère KodeOS sur `develop` avec les sous-modules récursifs. Git résout donc le sous-module SDK au commit enregistré dans KodeOS, plutôt que de prendre arbitrairement la tête de `kode-sdk/main`.
+Les workflows récupèrent KodeOS au commit immuable `9bcfdb71b763ee7b5c14106358643ea611fc97db`, avec les sous-modules récursifs, puis vérifient explicitement que `sdk` correspond au commit `1841cc8c13d4b2e3e4d7288b40cdac5de207a133`. Ils ne suivent donc pas la branche mouvante `develop`.
 
 ## Ce qui est réellement repris
 
@@ -86,9 +86,9 @@ Commit du dépôt ayant déclenché le run 61 :
 Le SDK est bien épinglé à :
 `1841cc8c13d4b2e3e4d7288b40cdac5de207a133`.
 
-Le commit KodeOS/develop résolu lors de la dernière lecture de la branche est :
+Le commit KodeOS désormais épinglé dans les deux workflows est :
 `9bcfdb71b763ee7b5c14106358643ea611fc97db`.
-Comme la branche develop peut avancer, le commit réellement consommé par chaque run est celui résolu au checkout de ce run ; le manifeste généré par le workflow est la référence de provenance de l'artefact correspondant.
+Les runs récents doivent être contrôlés individuellement ; leurs logs et leur manifeste de build restent la preuve de la provenance effective de chaque artefact.
 
 ## Périmètre ESP-EMU vérifié
 
@@ -97,3 +97,20 @@ La documentation ESP-EMU v1.0.0 indique que le build navigateur prend en charge 
 En revanche, la documentation ne fournit pas actuellement de part générique pour MIPI-DSI, I2S, SDMMC ou SDIO. La documentation ESP-Hosted consultée décrit une liaison native P4–C6 via socket Unix, pas le P4–C5 du Kode Dot dans un navigateur. Ces interfaces restent donc des travaux spécifiques, pas des capacités déjà acquises.
 
 Voir [le profil matériel Kode Dot DVT](hardware-model.md) pour les broches, adresses, composants, modèles à écrire et limites vérifiées.
+
+
+## Mise à jour — épinglage reproductible et builds du 14 novembre 2026
+
+Les deux workflows utilisent désormais les mêmes références immuables :
+
+- KodeOS : `9bcfdb71b763ee7b5c14106358643ea611fc97db`.
+- SDK : `1841cc8c13d4b2e3e4d7288b40cdac5de207a133`, vérifié par une étape `git rev-parse` et `test`.
+- ESP-IDF : `v6.1`, cible `esp32p4`.
+- ESP-EMU navigateur : tag `v1.0.0`, archive contrôlée par SHA-256.
+
+Runs déclenchés par cet épinglage :
+
+- [Build firmware — run 43621355137](https://github.com/livan-commits/similateur-kd/actions/runs/43621355137).
+- [Build Web — run 43621358508](https://github.com/livan-commits/similateur-kd/actions/runs/43621358508).
+
+Au dernier contrôle consigné, les deux jobs étaient encore en cours, sans étape en échec. Le résultat final doit être mis à jour après la fin des jobs. Un build firmware réussi prouve la production d'une image, pas son démarrage dans ESP-EMU ; un build Web réussi ne prouve pas que le firmware est raccordé au rendu KGUI.
