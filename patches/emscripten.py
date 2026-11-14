@@ -1,9 +1,30 @@
 #!/usr/bin/env python3
 """Apply a small, checked Emscripten adaptation to the pinned KUI simulator."""
 from pathlib import Path
+import shutil
 import sys
 
 sdk = Path(sys.argv[1])
+project = Path(__file__).resolve().parents[1]
+
+# Use the same upstream QP/C 8.1.4 POSIX host port as the native simulator.
+# The ESP-IDF port is not usable in a browser build because it requires FreeRTOS.
+port_source = project / "ports/qpc-posix"
+port_target = sdk / "components/qpc/port"
+port_target.mkdir(parents=True, exist_ok=True)
+for name in ("qp_port.h", "qp_config.h", "qf_port.c", "safe_std.h"):
+    source = port_source / name
+    if not source.is_file():
+        raise SystemExit(f"Missing vendored QP/C POSIX port file: {source}")
+    shutil.copy2(source, port_target / name)
+(port_target / "sdkconfig.h").write_text(
+    "/* Browser host configuration; not an ESP-IDF board configuration. */\\n"
+    "#ifndef SIMULATEUR_KD_SDKCONFIG_H\\n"
+    "#define SIMULATEUR_KD_SDKCONFIG_H\\n"
+    "#define CONFIG_KODE_SCHEDULER 0\\n"
+    "#define CONFIG_KODE_TEST_DOT 0\\n"
+    "#endif\\n"
+)
 cmake_path = sdk / "components/kui/sim/CMakeLists.txt"
 main_path = sdk / "components/kui/sim/main.c"
 
