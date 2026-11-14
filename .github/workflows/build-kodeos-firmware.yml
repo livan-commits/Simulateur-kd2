@@ -19,6 +19,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:
+      - name: Checkout simulator build overlays
+        uses: actions/checkout@v4
+        with:
+          path: simulator
+
       - name: Checkout official KodeOS and its pinned submodules
         uses: actions/checkout@v4
         with:
@@ -37,6 +42,9 @@ jobs:
           echo "Expected SDK:  $expected"
           echo "Actual SDK:    $actual"
           test "$actual" = "$expected"
+
+      - name: Enable the real KGUI framebuffer without physical MIPI-DSI
+        run: python3 simulator/patches/headless_display.py "$GITHUB_WORKSPACE"
 
       - name: Build the pinned ESP32-C5 coprocessor firmware
         uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
