@@ -51,7 +51,7 @@ if "file(GLOB KGUI_CORE" not in cmake:
     cmake = cmake.replace(source_anchor, source_anchor + source_addition, 1)
 # The standalone simulator does not use the firmware Active Object or OTA asset updater.
 # Those translation units depend on generated folder art and ESP-IDF Kconfig data.
-exclude_addition = 'list(FILTER KGUI_CORE EXCLUDE REGEX "/kgui_(ao|assets)\\.c$")\n'
+exclude_addition = 'list(FILTER KGUI_CORE EXCLUDE REGEX "/kgui_(ao|assets|tilt)\\.c$")\n'
 if "list(FILTER KGUI_CORE EXCLUDE REGEX" not in cmake:
     cmake = cmake.replace(source_addition, source_addition + exclude_addition, 1)
 old_sources = 'SOURCES ${CMAKE_CURRENT_LIST_DIR}/kgui_sim.c ${KGUI_SCREENS}'
