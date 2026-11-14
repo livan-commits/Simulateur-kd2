@@ -117,6 +117,9 @@ void kgui_screens_init(void)
         kgui_screen_face_time(local.tm_hour, local.tm_min, false, false);
     }
     kgui_screen_face_date(true);
+    /* LVGL timers are serviced by the Emscripten browser main loop. */
+    browser_clock_tick(NULL);
+    (void)lv_timer_create(browser_clock_tick, 1000U, NULL);
     kgui_screen_face_pile(true, 85U, KGUI_PILE_MEDIUM, false);
     kgui_screen_settings_battery(85U, lv_color_hex(0x4f9b73U));
     kgui_screen_settings_level(100U);
