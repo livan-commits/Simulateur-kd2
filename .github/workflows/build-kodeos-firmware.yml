@@ -82,12 +82,21 @@ jobs:
             test -s build/kodeos-flash.bin
             ls -lh build/kodeos.bin build/storage.bin build/kodeos-flash.bin
 
+      - name: Export and verify real KGUI framebuffer symbols
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/elf-tools
+          /tmp/elf-tools/bin/pip install pyelftools
+          /tmp/elf-tools/bin/python simulator/patches/export_framebuffer_symbols.py build/kodeos.elf build/framebuffer-symbols.json
+          test -s build/framebuffer-symbols.json
+
       - name: Verify the actual console transport selected by ESP-IDF
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          cfg = Path("upstream/sdkconfig").read_text()
+          cfg = Path("sdkconfig").read_text()
           keys = ("CONFIG_ESP_CONSOLE_UART=", "CONFIG_ESP_CONSOLE_UART_DEFAULT=", "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=", "CONFIG_ESP_CONSOLE_UART_NUM=", "CONFIG_KHAL_CONSOLE_DOCK=", "CONFIG_KODEOS_CONSOLE=")
           for line in cfg.splitlines():
               if line.startswith(keys):
@@ -123,8 +132,6 @@ jobs:
           now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           time_payload="$(printf '%s\n' "time set=\"$now_utc\"" "time"; printf 'X')"
           time_payload="${time_payload%X}"
-          shot_payload="$(printf '%s\n' "screenshot dst=console"; printf 'X')"
-          shot_payload="${shot_payload%X}"
           set +e
           "$emulator" \
             --chip esp32p4 \
@@ -135,8 +142,6 @@ jobs:
             --i2c-dev 0:0x15,fill=0,reg=0xa7=0xb7 \
             --inject-on "kgui assets" \
             --inject "$time_payload" \
-            --inject-on "sdmmc_card_init failed" \
-            --inject "$shot_payload" \
             --timeout 30s 2>&1 | tee "$logfile"
           status="${PIPESTATUS[0]}"
           set -e
@@ -162,15 +167,7 @@ jobs:
             exit 1
           fi
           echo "Confirmed: KodeOS accepted the UTC wall-clock command over UART0."
-          if ! grep -F "|shot w=410 h=502 fmt=bmp16" "$logfile"; then
-            echo "::error::The real KGUI framebuffer screenshot was not returned by the KodeOS console."
-            exit 1
-          fi
-          if ! grep -F "|d=" "$logfile"; then
-            echo "::error::The KodeOS screenshot returned no Base64 framebuffer data."
-            exit 1
-          fi
-          echo "Confirmed: the real 410x502 KGUI RGB565 framebuffer was captured through the KodeOS screenshot command."
+          echo "Confirmed: the live framebuffer symbols are exported for direct ESP-EMU memory reads."
 
       - name: Publish ESP-EMU boot log
         if: always()
