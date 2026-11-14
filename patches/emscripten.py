@@ -92,15 +92,22 @@ consumer_cmake_path.write_text(consumer_cmake)
 # The pinned SDK keeps KHAL and KDRV public headers in per-service folders.
 # Mirror the native host patch so transitive public headers (notably
 # kqp_signals.h -> khal_sync.h) resolve in the browser build as well.
+host_include_dirs = []
 for component in ("khal", "kdrv"):
-    component_dirs = sorted((sdk / "components" / component).glob("*/include"))
-    for include_dir in component_dirs:
-        if include_dir.is_dir():
-            consumer_cmake = consumer_cmake.replace(
-                "    ${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port)",
-                "    ${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port\\n    " + str(include_dir) + ")",
-                1,
-            )
+    host_include_dirs.extend(
+        path for path in sorted((sdk / "components" / component).glob("*/include"))
+        if path.is_dir()
+    )
+include_anchor = "    \${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port)"
+if consumer_cmake.count(include_anchor) != 1:
+    raise SystemExit("KGUI host include path: expected exactly one QP/C port anchor")
+include_paths = "\n".join("    " + str(path) for path in host_include_dirs)
+consumer_cmake = consumer_cmake.replace(
+    include_anchor,
+    "    \${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port\n"
+    + include_paths + ")",
+    1,
+)
 consumer_cmake_path.write_text(consumer_cmake)
 
 main = main_path.read_text()
