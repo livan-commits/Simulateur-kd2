@@ -33,7 +33,7 @@ def main(root: Path) -> None:
     source = once(
         source,
         '#include "sdkconfig.h"\n',
-        '#include "sdkconfig.h"\n\n/* Simulator overlay: retain KodeOS/KGUI rendering without a physical DSI panel. */\n#define KODEOS_WEB_HEADLESS_DISPLAY 1\n',
+        '#include "sdkconfig.h"\n#include <stdint.h>\n\n/* Simulator overlay: retain KodeOS/KGUI rendering without a physical DSI panel. */\n#define KODEOS_WEB_HEADLESS_DISPLAY 1\n',
         "headless build switch",
     )
 
@@ -43,6 +43,11 @@ def main(root: Path) -> None:
     helper = r"""
 
 #if KODEOS_WEB_HEADLESS_DISPLAY
+volatile uint32_t g_kode_web_fb_front = 0U;
+volatile uint32_t g_kode_web_fb_seq = 0U;
+volatile uint32_t g_kode_web_fb_dirty_y1 = 0U;
+volatile uint32_t g_kode_web_fb_dirty_y2 = KBSP_LCD_V_RES;
+
 static bool web_headless_buffers_init(void)
 {
     if ( (NULL != s_fb[0]) && (NULL != s_fb[1]) )
@@ -68,7 +73,25 @@ static bool web_headless_buffers_init(void)
     s_dirty_y2     = 0;
     s_prev_y1      = 0;
     s_prev_y2      = KBSP_LCD_V_RES;
+    g_kode_web_fb_front = (uint32_t)(uintptr_t)s_fb[0];
+    g_kode_web_fb_dirty_y1 = 0U;
+    g_kode_web_fb_dirty_y2 = KBSP_LCD_V_RES;
+    g_kode_web_fb_seq = 2U;
     return true;
+}
+
+static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
+{
+    if ( (NULL == front) || (y2 <= y1) )
+    {
+        return;
+    }
+    (void)esp_cache_msync(front, KDRV_DISPLAY_FB_BYTES, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    ++g_kode_web_fb_seq; /* odd: publishing */
+    g_kode_web_fb_front = (uint32_t)(uintptr_t)front;
+    g_kode_web_fb_dirty_y1 = (uint32_t)y1;
+    g_kode_web_fb_dirty_y2 = (uint32_t)y2;
+    ++g_kode_web_fb_seq; /* even: stable */
 }
 #endif
 """
@@ -105,6 +128,7 @@ static bool web_headless_buffers_init(void)
     s_prev_y2      = y2;
     s_back         = (uint8_t)(shown ^ 1U);
     s_flip_pending = false;
+    web_framebuffer_publish(s_fb[shown], y1, y2);
 #if CONFIG_KODEOS_SCREENSHOT
     shown_rows(y1, y2);
 #endif
@@ -122,6 +146,7 @@ static bool web_headless_buffers_init(void)
         s_prev_y2      = s_dirty_y2;
         s_back         = (uint8_t)(s_back ^ 1U);
         s_flip_pending = false;
+        web_framebuffer_publish(s_fb[s_back ^ 1U], s_dirty_y1, s_dirty_y2);
 #if CONFIG_KODEOS_SCREENSHOT
         shown_rows(s_dirty_y1, s_dirty_y2);
 #endif
