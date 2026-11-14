@@ -42,11 +42,11 @@ impl Default for Tca6408a {
             sda: None,
             int_pin: None,
             pointer: REG_INPUT,
-            input: INPUT_MASK,
+            input: 0xFF,
             output: 0xFF,
             polarity: 0,
             config: 0xFF,
-            previous_inputs: INPUT_MASK,
+            previous_inputs: 0xFF,
             irq: false,
             irq_reported: None,
         }
@@ -252,7 +252,7 @@ mod tests {
     fn reads_power_on_configuration_and_input_registers() {
         let mut d = configured();
         let input = d.bus(&transaction(&[REG_INPUT], 1)).unwrap();
-        assert_eq!(input.data, vec![0x7F]);
+        assert_eq!(input.data, vec![0xFF]);
         let cfg = d.bus(&transaction(&[REG_CONFIG], 1)).unwrap();
         assert_eq!(cfg.data, vec![0xFF]);
     }
