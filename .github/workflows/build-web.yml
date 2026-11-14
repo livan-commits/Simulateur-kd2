@@ -47,6 +47,9 @@ jobs:
           target: esp32c5
           command: bash tools/build_c5.sh
 
+      - name: Enable the real KGUI framebuffer without physical MIPI-DSI
+        run: python3 patches/headless_display.py upstream
+
       - name: Build the actual KodeOS ESP32-P4 firmware and storage image
         uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
         with:
@@ -195,10 +198,11 @@ jobs:
             "project": "similateur-kd",
             "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
             "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
-            "renderer": "official ESP-EMU browser runtime for ESP32-P4; separate upstream KGUI/KUI/LVGL preview in WebAssembly",
-            "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000",
+            "renderer": "official ESP-EMU browser runtime for ESP32-P4; KodeOS/KGUI framebuffer is headless RGB565 in P4 PSRAM and captured through the native screenshot console; separate upstream KGUI/KUI/LVGL preview",
+            "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000; simulator-only headless display overlay",
             "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
-            "esp_emu": "v1.0.0"
+            "esp_emu": "v1.0.0",
+            "display": "410x502 RGB565 framebuffer rendered by real KGUI; CO5300 MIPI-DSI hardware path bypassed"
           }
           EOF
           cat dist/versions.json
