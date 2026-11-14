@@ -1,0 +1,76 @@
+name: Build KodeOS ESP32-P4 firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-kodeos-firmware.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kodeos-firmware-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout official KodeOS and its pinned submodules
+        uses: actions/checkout@v4
+        with:
+          repository: kodediy/KodeOS
+          ref: develop
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Verify the SDK commit pinned by this project
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
+          actual="$(git -C sdk rev-parse HEAD)"
+          echo "KodeOS commit: $(git rev-parse HEAD)"
+          echo "Expected SDK:  $expected"
+          echo "Actual SDK:    $actual"
+          test "$actual" = "$expected"
+
+      - name: Build KodeOS and merge the ESP32-P4 flash image
+        uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
+        with:
+          esp_idf_version: v6.1
+          target: esp32p4
+          command: |
+            set -euo pipefail
+            idf.py build
+            idf.py merge-bin -o build/kodeos-flash.bin
+            {
+              echo "KodeOS source: $(git rev-parse HEAD)"
+              echo "KodeOS SDK: $(git -C sdk rev-parse HEAD)"
+              echo "ESP-IDF: v6.1"
+              echo "Target: esp32p4"
+              echo "Application: build/kodeos.bin"
+              echo "Merged flash: build/kodeos-flash.bin"
+            } > build/firmware-build-info.txt
+            test -s build/kodeos.bin
+            test -s build/kodeos-flash.bin
+            ls -lh build/kodeos.bin build/kodeos-flash.bin
+
+      - name: Publish firmware build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kodeos-esp32p4-firmware
+          path: |
+            build/kodeos-flash.bin
+            build/kodeos.bin
+            build/kodeos.elf
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/ota_data_initial.bin
+            build/flash_args
+            build/firmware-build-info.txt
+          if-no-files-found: error
+          retention-days: 30
