@@ -38,14 +38,20 @@ jobs:
           echo "Actual SDK:    $actual"
           test "$actual" = "$expected"
 
-      - name: Build KodeOS and merge the ESP32-P4 flash image
+      - name: Build the pinned ESP32-C5 coprocessor firmware
+        uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
+        with:
+          esp_idf_version: v6.1
+          target: esp32c5
+          command: bash tools/build_c5.sh
+
+      - name: Build KodeOS and merge the complete ESP32-P4 flash image
         uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
         with:
           esp_idf_version: v6.1
           target: esp32p4
           command: |
             set -euo pipefail
-            bash tools/build_c5.sh
             idf.py build
             (
               cd build
@@ -65,7 +71,6 @@ jobs:
             test -s build/storage.bin
             test -s build/kodeos-flash.bin
             ls -lh build/kodeos.bin build/storage.bin build/kodeos-flash.bin
-
 
       - name: Download and verify ESP-EMU v1.0.0
         shell: bash
