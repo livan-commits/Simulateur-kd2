@@ -248,7 +248,7 @@
         }
         return;
       }
-      if (text.includes("kgui assets") && !firstAssetsSeen) {
+      if (text.toLowerCase().includes("kgui assets") && !firstAssetsSeen) {
         firstAssetsSeen = true;
         timeSyncReady = true;
         log(text);
