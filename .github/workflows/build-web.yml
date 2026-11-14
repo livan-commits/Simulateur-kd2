@@ -246,6 +246,13 @@ jobs:
                 const file = firmwareInput.files?.[0];
                 if (!file) { log("Choisis d'abord une image .bin."); return; }
                 runButton.disabled = true;
+                // A failed previous attempt must not count stale part-ready events.
+                readyParts.clear();
+                partFailure = null;
+                if (touchIrqTimer !== null) {
+                  clearTimeout(touchIrqTimer);
+                  touchIrqTimer = null;
+                }
                 try {
                   await init();
                   const emu = new WasmEmulator("esp32p4");
