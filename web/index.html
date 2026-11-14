@@ -86,7 +86,7 @@
       </div>
       <h2>Journal UART0 / KodeOS</h2>
       <pre id="console" aria-live="polite"></pre>
-      <p class="hint">Le firmware officiel est chargé depuis le dépôt. L’horloge système reçoit l’heure UTC du navigateur via la commande native <code>time set=</code>.</p>
+      <p class="hint">Le firmware officiel est chargé dans ESP-EMU. L’horloge reçoit l’heure UTC du navigateur ; l’écran lit directement le framebuffer RGB565 en PSRAM.</p>
       <p><a class="download" href="./firmware/kodeos-flash.bin" download="kodeos-flash.bin">Télécharger le firmware KodeOS</a></p>
     </section>
   </main>
@@ -110,6 +110,11 @@
     let timeTimer = null;
     let timeSyncReady = false;
     let firstAssetsSeen = false;
+    let framebufferSymbols = null;
+    let framebufferTimer = null;
+    let lastFramebufferSeq = -1;
+    let hasFramebufferFrame = false;
+    let framebufferErrorShown = false;
 
     function setStatus(message, kind = "") {
       $("status").textContent = message;
@@ -154,46 +159,76 @@
       return bytes;
     }
 
-    function renderBmp16(base64) {
-      const raw = atob(base64.replace(/\s/g, ""));
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      const view = new DataView(bytes.buffer);
-      const offset = view.getUint32(10, true);
-      const width = view.getInt32(18, true);
-      const signedHeight = view.getInt32(22, true);
-      const height = Math.abs(signedHeight);
-      const bpp = view.getUint16(28, true);
-      if (width !== 410 || height !== 502 || bpp !== 16) {
-        throw new Error("Framebuffer BMP inattendu: " + width + "x" + height + " / " + bpp + " bpp");
+    function readMemoryWord(address) {
+      const bytes = emu.read_memory(address, 4);
+      if (!(bytes instanceof Uint8Array) || bytes.length !== 4) {
+        throw new Error("Lecture mémoire ESP-EMU incomplète à 0x" + address.toString(16));
       }
-      const compression = view.getUint32(30, true);
-      const redMask = compression === 3 ? view.getUint32(54, true) : 0xF800;
-      const greenMask = compression === 3 ? view.getUint32(58, true) : 0x07E0;
-      const blueMask = compression === 3 ? view.getUint32(62, true) : 0x001F;
-      const channel = (pixel, mask) => {
-        let shift = 0;
-        while (shift < 16 && ((mask >>> shift) & 1) === 0) shift++;
-        const max = mask >>> shift;
-        return max ? Math.round(((pixel & mask) >>> shift) * 255 / max) : 0;
-      };
-      const stride = Math.ceil(width * 2 / 4) * 4;
-      const image = ctx.createImageData(width, height);
-      for (let y = 0; y < height; y++) {
-        const sourceY = signedHeight > 0 ? height - 1 - y : y;
-        const row = offset + sourceY * stride;
-        for (let x = 0; x < width; x++) {
-          const pixel = view.getUint16(row + x * 2, true);
-          const dest = (y * width + x) * 4;
-          image.data[dest] = channel(pixel, redMask);
-          image.data[dest + 1] = channel(pixel, greenMask);
-          image.data[dest + 2] = channel(pixel, blueMask);
-          image.data[dest + 3] = 255;
+      return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true);
+    }
+
+    function pollFramebuffer() {
+      if (!running || !emu || !framebufferSymbols) return;
+      try {
+        const seqAddress = Number.parseInt(framebufferSymbols.sequence_address, 16);
+        const pointerAddress = Number.parseInt(framebufferSymbols.front_pointer_address, 16);
+        const y1Address = Number.parseInt(framebufferSymbols.dirty_y1_address, 16);
+        const y2Address = Number.parseInt(framebufferSymbols.dirty_y2_address, 16);
+        const seqBefore = readMemoryWord(seqAddress);
+        if ((seqBefore & 1) !== 0 || seqBefore === lastFramebufferSeq) return;
+
+        const framebuffer = readMemoryWord(pointerAddress);
+        const dirtyY1 = readMemoryWord(y1Address);
+        const dirtyY2 = readMemoryWord(y2Address);
+        const seqCheck = readMemoryWord(seqAddress);
+        if (seqBefore !== seqCheck || (seqCheck & 1) !== 0) return;
+        if (!framebuffer) return;
+
+        const y1 = hasFramebufferFrame ? Math.max(0, Math.min(501, dirtyY1)) : 0;
+        const y2 = hasFramebufferFrame ? Math.max(y1, Math.min(502, dirtyY2)) : 502;
+        if (y2 <= y1) {
+          lastFramebufferSeq = seqCheck;
+          return;
+        }
+
+        const byteLength = (y2 - y1) * 410 * 2;
+        const pixels = new Uint8Array(byteLength);
+        const maxChunk = Number(framebufferSymbols.max_read_bytes || 4096);
+        for (let offset = 0; offset < byteLength; offset += maxChunk) {
+          const count = Math.min(maxChunk, byteLength - offset);
+          const chunk = emu.read_memory(framebuffer + y1 * 410 * 2 + offset, count);
+          if (!(chunk instanceof Uint8Array) || chunk.length !== count) {
+            throw new Error("Lecture PSRAM incomplète (" + offset + "/" + byteLength + " octets)");
+          }
+          pixels.set(chunk, offset);
+        }
+
+        const seqAfterCopy = readMemoryWord(seqAddress);
+        if (seqAfterCopy !== seqCheck || (seqAfterCopy & 1) !== 0) return;
+
+        const image = ctx.createImageData(410, y2 - y1);
+        for (let i = 0, p = 0; i < pixels.length; i += 2, p += 4) {
+          const rgb565 = pixels[i] | (pixels[i + 1] << 8);
+          const r = (rgb565 >>> 11) & 0x1f;
+          const g = (rgb565 >>> 5) & 0x3f;
+          const b = rgb565 & 0x1f;
+          image.data[p] = (r * 255 + 15) / 31;
+          image.data[p + 1] = (g * 255 + 31) / 63;
+          image.data[p + 2] = (b * 255 + 15) / 31;
+          image.data[p + 3] = 255;
+        }
+        ctx.putImageData(image, 0, y1);
+        lastFramebufferSeq = seqAfterCopy;
+        hasFramebufferFrame = true;
+        framebufferErrorShown = false;
+        $("frame-status").textContent = "PSRAM KGUI · séquence " + seqAfterCopy;
+        $("sync").disabled = false;
+      } catch (error) {
+        if (!framebufferErrorShown) {
+          log("[framebuffer mémoire] " + (error?.message || error));
+          framebufferErrorShown = true;
         }
       }
-      ctx.putImageData(image, 0, 0);
-      $("frame-status").textContent = "Image KGUI reçue";
-      $("sync").disabled = false;
     }
 
     function sendConsole(command) {
@@ -211,43 +246,9 @@
       sendConsole('time set="' + isoUtc + '"');
     }
 
-    function requestScreenshot() {
-      if (!running || shotActive || !timeSyncReady) return;
-      shotActive = true;
-      shotParts = [];
-      if (!sendConsole("screenshot dst=console")) {
-        shotActive = false;
-      }
-    }
-
     function processLine(line) {
       const text = line.trim();
       if (!text) return;
-      if (text.includes("|shot w=410 h=502 fmt=bmp16")) {
-        shotActive = true;
-        shotParts = [];
-        log("[framebuffer] Capture 410×502 RGB565 reçue");
-        return;
-      }
-      if (text.includes("|d=") && shotActive) {
-        shotParts.push(text.slice(text.indexOf("|d=") + 3).trim());
-        return;
-      }
-      if (shotActive && (text === ">ok" || text.endsWith(">ok"))) {
-        try {
-          renderBmp16(shotParts.join(""));
-          shotActive = false;
-          shotParts = [];
-          if (shotTimer) clearTimeout(shotTimer);
-          shotTimer = setTimeout(requestScreenshot, 1500);
-        } catch (error) {
-          log("[framebuffer] " + error.message);
-          shotActive = false;
-          shotParts = [];
-          shotTimer = setTimeout(requestScreenshot, 2000);
-        }
-        return;
-      }
       if (text.toLowerCase().includes("kgui assets") && !firstAssetsSeen) {
         firstAssetsSeen = true;
         timeSyncReady = true;
@@ -255,10 +256,9 @@
         syncTime();
         if (timeTimer) clearInterval(timeTimer);
         timeTimer = setInterval(syncTime, 30000);
-        shotTimer = setTimeout(requestScreenshot, 5000);
+        log("[framebuffer] Lecture directe de la PSRAM activée via ESP-EMU read_memory()");
         return;
       }
-      if (text.includes("|d=") && !shotActive) return;
       log(text);
     }
 
@@ -282,6 +282,14 @@
         log("[emu] Firmware fusionné chargé (" + firmware.length.toLocaleString("fr-FR") + " octets)");
         emu.load_default_rom();
         await emu.load_firmware(firmware);
+        const symbolsResponse = await fetch("./framebuffer-symbols.json");
+        if (!symbolsResponse.ok) throw new Error("Table des symboles framebuffer HTTP " + symbolsResponse.status);
+        framebufferSymbols = await symbolsResponse.json();
+        if (framebufferSymbols.width !== 410 || framebufferSymbols.height !== 502 ||
+            framebufferSymbols.bytes_per_pixel !== 2 || !framebufferSymbols.front_pointer_address) {
+          throw new Error("Table des symboles framebuffer invalide");
+        }
+        log("[framebuffer] Symboles ELF chargés · accès PSRAM direct");
         // ESP-EMU v1.0.0 exposes the UART RX bridge as uart_input(Uint8Array).
         // This is the real console input path used for KodeOS time sync and screenshots.
         const encoder = new TextEncoder();
@@ -308,6 +316,8 @@
         });
         running = true;
         $("sync").disabled = false;
+        if (framebufferTimer) clearInterval(framebufferTimer);
+        framebufferTimer = setInterval(pollFramebuffer, 500);
       } catch (error) {
         setStatus("Échec du démarrage", "warn");
         log("[erreur] " + (error?.stack || error));
