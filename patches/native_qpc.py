@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Prepare the pinned KGUI simulator for a native host build."""
 from pathlib import Path
-import os
 import shutil
 import sys
 
@@ -49,14 +48,13 @@ new = (
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kaos/core/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kqp/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/qpc/include "
-    "${target}"
+    f"{target}"
 )
 # KHAL is split into one include directory per service (sync, gpio, i2c, ...).
 # Add the real upstream directories rather than stubbing hardware APIs.
 khal_dirs = sorted((sdk / "components/khal").glob("*/include"))
 for include_dir in khal_dirs:
     if include_dir.is_dir():
-        relative = os.path.relpath(include_dir, consumer_cmake.parent)
         new = new[:-1] + " " + str(include_dir) + ")"
 
 if cmake.count(old) != 1:
