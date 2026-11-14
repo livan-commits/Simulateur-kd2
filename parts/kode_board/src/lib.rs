@@ -228,3 +228,57 @@ impl KodeBoard {
 }
 
 esp_part::export_part!(KodeBoard, buffer = 512);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn i2c_request(addr: u32, write: &[u8], read_len: u32) -> BusRequest {
+        BusRequest {
+            correlation_id: 7,
+            op: Some(bus_request::Op::I2c(I2cTransaction {
+                addr,
+                write: write.to_vec(),
+                read_len,
+                continues: false,
+                ..Default::default()
+            })),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn cst820_reports_the_expected_family_id() {
+        let mut board = KodeBoard::default();
+        let reply = board.on_bus(&i2c_request(CST_ADDR, &[0xA7], 3)).unwrap();
+        assert!(reply.ack);
+        assert_eq!(reply.data, [0xB7, 0x01, 0x01]);
+    }
+
+    #[test]
+    fn tca6408a_registers_are_readable_and_writable() {
+        let mut board = KodeBoard::default();
+        let read = board.on_bus(&i2c_request(TCA_ADDR, &[0x03], 1)).unwrap();
+        assert!(read.ack);
+        assert_eq!(read.data, [0xFF]);
+
+        let write = board.on_bus(&i2c_request(TCA_ADDR, &[0x01, 0x7F], 0)).unwrap();
+        assert!(write.ack);
+        let read = board.on_bus(&i2c_request(TCA_ADDR, &[0x01], 1)).unwrap();
+        assert_eq!(read.data, [0x7F]);
+    }
+
+    #[test]
+    fn browser_tap_becomes_a_cst820_frame_and_expander_irq() {
+        let mut board = KodeBoard::default();
+        board.on_input("tap:123,456");
+        assert_eq!(board.tca_input & (1 << 6), 0);
+        assert!(board.poll(0).is_some());
+
+        let frame = board.on_bus(&i2c_request(CST_ADDR, &[0x01], 6)).unwrap();
+        assert_eq!(frame.data, [0, 1, 0, 123, 1, 200]);
+
+        assert!(board.poll(PRESS_NS + 1).is_some());
+        assert_eq!(board.tca_input, 0xFF);
+    }
+}
