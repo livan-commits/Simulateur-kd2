@@ -18,12 +18,12 @@ for name in ("qp_port.h", "qp_config.h", "qf_port.c", "safe_std.h"):
         raise SystemExit(f"Missing vendored QP/C POSIX port file: {source}")
     shutil.copy2(source, port_target / name)
 (port_target / "sdkconfig.h").write_text(
-    "/* Browser host configuration; not an ESP-IDF board configuration. */\\n"
-    "#ifndef SIMULATEUR_KD_SDKCONFIG_H\\n"
-    "#define SIMULATEUR_KD_SDKCONFIG_H\\n"
-    "#define CONFIG_KODE_SCHEDULER 0\\n"
-    "#define CONFIG_KODE_TEST_DOT 0\\n"
-    "#endif\\n"
+    "/* Browser host configuration; not an ESP-IDF board configuration. */\n"
+    "#ifndef SIMULATEUR_KD_SDKCONFIG_H\n"
+    "#define SIMULATEUR_KD_SDKCONFIG_H\n"
+    "#define CONFIG_KODE_SCHEDULER 0\n"
+    "#define CONFIG_KODE_TEST_DOT 0\n"
+    "#endif\n"
 )
 cmake_path = sdk / "components/kui/sim/CMakeLists.txt"
 main_path = sdk / "components/kui/sim/main.c"
