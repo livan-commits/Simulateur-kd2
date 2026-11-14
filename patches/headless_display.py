@@ -207,6 +207,8 @@ static bool web_headless_buffers_init(void)
         # ESP-EMU's browser terminal is UART0; keep its input and output bidirectional.
         ("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", "n"),
         ("CONFIG_ESP_CONSOLE_UART_DEFAULT", "y"),
+        # The dock CDC-ACM port claims the USB OTG console; browser input is UART0.
+        ("CONFIG_KHAL_CONSOLE_DOCK", "n"),
     ):
         lines = [line for line in config.splitlines()
                  if not line.startswith(key + "=")
