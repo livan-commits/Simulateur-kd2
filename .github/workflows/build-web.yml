@@ -99,6 +99,25 @@ jobs:
           test -n "$www_dir"
           cp -a "$www_dir"/. dist/esp-emu/
 
+      - name: Inspect official ESP-EMU browser hooks for the firmware display bridge
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          terms = ("WasmEmulator", "load_firmware", "psram", "read_memory", "memory_read", "uart0", "run_batch", "cosim_attach", "set_psram")
+          for name in ("index.html", "app.js", "cosim.js", "pkg/esp_emu.js"):
+              path = Path("dist/esp-emu") / name
+              if not path.is_file():
+                  continue
+              source = path.read_text(errors="replace")
+              print(f"\\n===== {name} ({len(source)} chars) =====")
+              for term in terms:
+                  pos = source.find(term)
+                  if pos >= 0:
+                      print(f"--- {term} ---")
+                      print(source[max(0, pos-220):pos+520].replace("\\n", " ")[:800])
+          PY
+
       - name: Prepare single-page KodeOS web emulator
         shell: bash
         run: |
