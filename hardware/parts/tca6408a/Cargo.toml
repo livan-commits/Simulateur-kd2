@@ -1,0 +1,11 @@
+[package]
+name = "kode-dot-tca6408a"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+esp-part = { path = "../../../esp-emulator/esp-part" }
