@@ -63,3 +63,37 @@ Le prochain travail consiste à résoudre proprement la dépendance QP/C à part
 ## Règle de provenance
 
 Chaque composant doit rester traçable vers son dépôt, son chemin et sa version. Les adaptations du portage Web doivent être identifiées comme telles. Une compilation réussie du simulateur graphique ne devra jamais être présentée comme une émulation complète du firmware.
+
+
+## Mise à jour — publication WebAssembly et ESP-EMU (2026-11-14)
+
+Le workflow [run 59](https://github.com/livan-commits/similateur-kd/actions/runs/43614715092) a réussi la compilation KGUI, la préparation des fichiers navigateur, la récupération d'ESP-EMU v1.0.0 et le déploiement Pages.
+
+Le workflow [run 61](https://github.com/livan-commits/similateur-kd/actions/runs/43614999742) a également réussi, y compris les deux jobs **build** et **deploy**. Ce run :
+- vérifie le sous-module SDK au commit attendu ;
+- installe Emscripten et applique l'adaptation navigateur ;
+- compile le simulateur KGUI officiel ;
+- télécharge ESP-EMU v1.0.0 et vérifie son SHA-256 avant extraction ;
+- génère le lanceur du site et `versions.json` ;
+- publie l'artefact GitHub Pages.
+
+SHA-256 vérifié du paquet `esp-emu-1.0.0-wasm.tar.gz` :
+`1b55d715c614207d3a441ad3c834eca216891f85c907b0ac0b1d7d9746294873`.
+
+Commit du dépôt ayant déclenché le run 61 :
+`449c28265d67bea6f672ead3a41e2c369b26476f`.
+
+Le SDK est bien épinglé à :
+`1841cc8c13d4b2e3e4d7288b40cdac5de207a133`.
+
+Le commit KodeOS/develop résolu lors de la dernière lecture de la branche est :
+`9bcfdb71b763ee7b5c14106358643ea611fc97db`.
+Comme la branche develop peut avancer, le commit réellement consommé par chaque run est celui résolu au checkout de ce run ; le manifeste généré par le workflow est la référence de provenance de l'artefact correspondant.
+
+## Périmètre ESP-EMU vérifié
+
+La documentation ESP-EMU v1.0.0 indique que le build navigateur prend en charge ESP32-P4 et ESP32-C5. Son système Virtual Parts navigateur charge des modules WASM dans des Web Workers et prend actuellement en charge les interactions GPIO, I2C et SPI. Il est donc possible d'écrire des modèles matériels personnalisés pour plusieurs circuits du Kode Dot.
+
+En revanche, la documentation ne fournit pas actuellement de part générique pour MIPI-DSI, I2S, SDMMC ou SDIO. La documentation ESP-Hosted consultée décrit une liaison native P4–C6 via socket Unix, pas le P4–C5 du Kode Dot dans un navigateur. Ces interfaces restent donc des travaux spécifiques, pas des capacités déjà acquises.
+
+Voir [le profil matériel Kode Dot DVT](hardware-model.md) pour les broches, adresses, composants, modèles à écrire et limites vérifiées.
