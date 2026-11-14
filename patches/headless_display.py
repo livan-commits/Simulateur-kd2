@@ -239,6 +239,10 @@ static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
         ("CONFIG_ESP_CONSOLE_UART_DEFAULT", "y"),
         # The dock CDC-ACM port claims the USB OTG console; browser input is UART0.
         ("CONFIG_KHAL_CONSOLE_DOCK", "n"),
+        # No ST25R3916 on the emulated SPI2: its floating IRQ line would fire
+        # without end and the nfc_irq servicer would eat CPU 0 whole before
+        # the console ever runs.
+        ("CONFIG_KODEOS_NFC", "n"),
     ):
         lines = [line for line in config.splitlines()
                  if not line.startswith(key + "=")
