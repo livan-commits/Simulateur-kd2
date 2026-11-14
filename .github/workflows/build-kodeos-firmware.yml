@@ -96,29 +96,29 @@ jobs:
         run: |
           set -uo pipefail
           emulator="$(cat /tmp/esp-emu-path)"
+          logfile="$RUNNER_TEMP/esp-emu-boot.log"
           set +e
           "$emulator" \
             --chip esp32p4 \
             --firmware build/kodeos-flash.bin \
             --psram-size 32M \
             --timeout 120s \
-            --exit-on "hardware " 2>&1 | tee build/esp-emu-boot.log
+            --exit-on "hardware " 2>&1 | tee "$logfile"
           status="${PIPESTATUS[0]}"
           set -e
           echo "ESP-EMU exit code: $status"
           echo "===== UART / emulator boot log ====="
-          cat build/esp-emu-boot.log
-          # Exit-on ends the observation as soon as the SDK banner is emitted; the timeout is a safety net.
+          cat "$logfile"
           if [ "$status" -ne 0 ]; then
-            echo "::error::ESP-EMU did not complete the 15-second KodeOS boot observation (exit $status)"
+            echo "::error::ESP-EMU did not reach the KodeOS hardware banner (exit $status)"
             exit "$status"
           fi
-          test -s build/esp-emu-boot.log
-          if ! grep -F "hardware " build/esp-emu-boot.log; then
+          test -s "$logfile"
+          if ! grep -F "hardware " "$logfile"; then
             echo "::error::The KodeOS hardware boot banner was not observed on the ESP-EMU UART."
             exit 1
           fi
-          if ! grep -F "sdk " build/esp-emu-boot.log; then
+          if ! grep -F "sdk " "$logfile"; then
             echo "::error::The KodeOS SDK boot banner was not observed on the ESP-EMU UART."
             exit 1
           fi
@@ -129,7 +129,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kodeos-esp32p4-esp-emu-boot-log
-          path: build/esp-emu-boot.log
+          path: ${{ runner.temp }}/esp-emu-boot.log
           if-no-files-found: warn
           retention-days: 30
 
