@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: kodediy/KodeOS
-          ref: develop
+          ref: 9bcfdb71b763ee7b5c14106358643ea611fc97db
           submodules: recursive
           fetch-depth: 1
 
