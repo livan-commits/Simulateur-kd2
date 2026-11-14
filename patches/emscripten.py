@@ -154,8 +154,8 @@ print("Emscripten adaptation applied to the pinned KUI simulator.")
 # are enabled in this standalone simulator.
 config_header = sdk / "components/qpc/port/sdkconfig.h"
 config_header.write_text(
-    "#ifndef KODE_SIM_SDKCONFIG_H\\n"
-    "#define KODE_SIM_SDKCONFIG_H\\n"
-    "/* Host/Emscripten simulator: no ESP-IDF Kconfig options. */\\n"
-    "#endif\\n"
+    "#ifndef KODE_SIM_SDKCONFIG_H\n"
+    "#define KODE_SIM_SDKCONFIG_H\n"
+    "/* Host/Emscripten simulator: no ESP-IDF Kconfig options. */\n"
+    "#endif\n"
 )
