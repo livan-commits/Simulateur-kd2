@@ -52,13 +52,13 @@
     <pre id="log" aria-live="polite">Les messages UART du vrai firmware KodeOS apparaîtront ici après le démarrage.</pre>
     <div class="row">
       <button id="clear" class="secondary">Effacer les logs</button>
-      <span id="runtime" class="tag">ESP32-P4 · 32 Mo PSRAM configurés</span>
+      <span id="runtime" class="tag">ESP32-P4 · profil mémoire Web par défaut</span>
     </div>
   </section>
 
   <section class="panel">
     <h2>État de l'émulation</h2>
-    <p class="notice">Le CPU ESP32-P4 et le firmware sont exécutés par ESP-EMU. Le contrôleur d'écran CO5300 en MIPI-DSI n'est pas encore relié à un framebuffer KGUI dans cette version. Les périphériques Kode Dot (tactile, expandeur de boutons, capteurs, audio, microSD et coprocesseur C5) ne sont pas tous raccordés : les journaux série permettront d'identifier les premiers points de blocage.</p>
+    <p class="notice">Le CPU ESP32-P4 et le firmware sont exécutés par ESP-EMU. La taille PSRAM de 32 Mo utilisée dans le test natif doit encore être explicitement raccordée au runtime navigateur. Le contrôleur d'écran CO5300 en MIPI-DSI n'est pas encore relié à un framebuffer KGUI dans cette version. Les périphériques Kode Dot (tactile, expandeur de boutons, capteurs, audio, microSD et coprocesseur C5) ne sont pas tous raccordés : les journaux série permettront d'identifier les premiers points de blocage.</p>
     <p>Le panneau graphique ci-dessous est un aperçu KGUI amont indépendant. Il n'est pas présenté comme l'écran du firmware émulé tant que le pont d'affichage n'est pas réalisé.</p>
   </section>
 
