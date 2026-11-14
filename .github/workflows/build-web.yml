@@ -114,6 +114,17 @@ jobs:
             dist/esp32/parts/
           ls -lh dist/esp32/parts/kode_dot_tca6408a.wasm
 
+      - name: Test and compile Kode Dot CST820 Virtual Part
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path hardware/parts/cst820/Cargo.toml
+          cargo build --release --target wasm32-unknown-unknown \
+            --manifest-path hardware/parts/cst820/Cargo.toml
+          cp hardware/parts/cst820/target/wasm32-unknown-unknown/release/kode_dot_cst820.wasm \
+            dist/esp32/parts/
+          ls -lh dist/esp32/parts/kode_dot_cst820.wasm
+
       - name: Create Kode Dot hardware test page
         shell: bash
         run: |
@@ -294,7 +305,7 @@ jobs:
             "kodeos_sdk_commit": "$sdk_commit",
             "expected_kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
             "esp_emu_version": "1.0.0",
-            "kode_dot_tca6408a_part": "0.1.0",
+            "kode_dot_tca6408a_part": "0.1.0",\n            "kode_dot_cst820_part": "0.1.0",
             "esp_emu_wasm_sha256": "1b55d715c614207d3a441ad3c834eca216891f85c907b0ac0b1d7d9746294873"
           }
           EOF
