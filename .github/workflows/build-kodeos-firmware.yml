@@ -100,13 +100,14 @@ jobs:
             --chip esp32p4 \
             --firmware build/kodeos-flash.bin \
             --psram-size 32M \
-            --timeout 15s 2>&1 | tee build/esp-emu-boot.log
+            --timeout 120s \
+            --exit-on "sdk " 2>&1 | tee build/esp-emu-boot.log
           status="${PIPESTATUS[0]}"
           set -e
           echo "ESP-EMU exit code: $status"
           echo "===== UART / emulator boot log ====="
           cat build/esp-emu-boot.log
-          # Timeout is not expected: ESP-EMU's own --timeout should stop cleanly.
+          # Exit-on ends the observation as soon as the SDK banner is emitted; the timeout is a safety net.
           if [ "$status" -ne 0 ]; then
             echo "::error::ESP-EMU did not complete the 15-second KodeOS boot observation (exit $status)"
             exit "$status"
