@@ -121,6 +121,29 @@ jobs:
                       print(source[max(0, pos-220):pos+520].replace("\\n", " ")[:800])
           PY
 
+      - name: Checkout official ESP-EMU v1.0.0 virtual-part SDK
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-emulator
+          ref: v1.0.0
+          path: .cache/esp-emulator-src
+          fetch-depth: 1
+
+      - name: Build the Kode Dot I2C virtual board part
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Compile Kode Dot I2C virtual board to WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$PWD/.cache/cargo-target"
+          cargo build --release --target wasm32-unknown-unknown --manifest-path parts/kode_board/Cargo.toml
+          mkdir -p dist/esp-emu/parts
+          cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/kode_board.wasm" dist/esp-emu/parts/
+          test -s dist/esp-emu/parts/kode_board.wasm
+
       - name: Prepare single-page KodeOS web emulator
         shell: bash
         run: |
