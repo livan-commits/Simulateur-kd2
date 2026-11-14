@@ -182,7 +182,7 @@ jobs:
 
           manifest = json.loads(Path("dist/versions.json").read_text())
           assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
-          assert "ESP-EMU" in manifest["renderer"] and "KGUI/KUI/LVGL" in manifest["renderer"]
+          assert "ESP-EMU" in manifest["renderer"] and "real KGUI" in manifest["renderer"]
           for name in ("index.html", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js", "esp-emu/part-worker.js", "esp-emu/vendor/esp_cosim_pb.js", "esp-emu/parts/kode_board.wasm"):
               path = Path("dist") / name
               assert path.is_file() and path.stat().st_size > 0, name
