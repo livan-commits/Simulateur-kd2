@@ -141,7 +141,7 @@ jobs:
             --psram-size 32M \
             --i2c-dev 0:0x20 \
             --i2c-dev 0:0x15,fill=0,reg=0xa7=0xb7 \
-            --inject-on "sdmmc_card_init failed" \
+            --inject-on "console up ('help' for commands)" \
             --inject "$time_payload" \
             --timeout 30s 2>&1 | tee "$logfile"
           status="${PIPESTATUS[0]}"
