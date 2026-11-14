@@ -381,6 +381,40 @@ jobs:
           EOF
           cat dist/versions.json
 
+      - name: Validate complete browser artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("dist/versions.json").read_text())
+          assert manifest["kodeos_sdk_commit"] == manifest["expected_kodeos_sdk_commit"], manifest
+          assert manifest["esp_emu_version"] == "1.0.0", manifest
+          print("Manifest JSON valide ; SDK épinglé :", manifest["kodeos_sdk_commit"])
+          PY
+          required_files=(
+            dist/index.html
+            dist/versions.json
+            dist/kgui/index.html
+            dist/kgui/kgui_sim.js
+            dist/kgui/kgui_sim.wasm
+            dist/esp32/index.html
+            dist/esp32/pkg/esp_emu.js
+            dist/esp32/pkg/esp_emu_bg.wasm
+            dist/esp32/cosim.js
+            dist/esp32/part-worker.js
+            dist/esp32/vendor/esp_cosim_pb.js
+            dist/esp32/kode-dot.html
+            dist/esp32/parts/kode_dot_tca6408a.wasm
+            dist/esp32/parts/kode_dot_cst820.wasm
+          )
+          for file in "${required_files[@]}"; do
+            test -s "$file" || { echo "Fichier manquant ou vide : $file"; exit 1; }
+            echo "OK $file ($(wc -c < "$file") octets)"
+          done
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
