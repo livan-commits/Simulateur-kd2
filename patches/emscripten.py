@@ -55,6 +55,7 @@ consumer_cmake = replace_once(
     "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens "
     "${CMAKE_CURRENT_LIST_DIR}/.. "
     "${CMAKE_CURRENT_LIST_DIR}/../include "
+    "${CMAKE_CURRENT_LIST_DIR}/../glyphs "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kode_sys/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kdefs/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/klog/include "
