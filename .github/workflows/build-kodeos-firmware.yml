@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-kodeos-firmware.yml"
+      - "patches/headless_display.py"
 
 permissions:
   contents: read
@@ -19,11 +20,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:
-      - name: Checkout simulator build overlays
-        uses: actions/checkout@v4
-        with:
-          path: simulator
-
       - name: Checkout official KodeOS and its pinned submodules
         uses: actions/checkout@v4
         with:
@@ -31,6 +27,11 @@ jobs:
           ref: 9bcfdb71b763ee7b5c14106358643ea611fc97db
           submodules: recursive
           fetch-depth: 1
+
+      - name: Checkout simulator build overlays
+        uses: actions/checkout@v4
+        with:
+          path: simulator
 
       - name: Verify the SDK commit pinned by this project
         shell: bash
