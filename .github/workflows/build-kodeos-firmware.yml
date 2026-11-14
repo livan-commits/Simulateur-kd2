@@ -101,7 +101,7 @@ jobs:
             --firmware build/kodeos-flash.bin \
             --psram-size 32M \
             --timeout 120s \
-            --exit-on "sdk " 2>&1 | tee build/esp-emu-boot.log
+            --exit-on "hardware " 2>&1 | tee build/esp-emu-boot.log
           status="${PIPESTATUS[0]}"
           set -e
           echo "ESP-EMU exit code: $status"
