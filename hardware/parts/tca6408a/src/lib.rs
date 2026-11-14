@@ -282,7 +282,7 @@ mod tests {
     fn unrecognised_interactions_do_not_change_inputs() {
         let mut d = configured();
         d.interact("click");
-        assert_eq!(d.input, INPUT_MASK);
+        assert_eq!(d.input, 0xFF);
         assert!(!d.irq);
     }
 }
