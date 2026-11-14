@@ -45,19 +45,26 @@ jobs:
           target: esp32p4
           command: |
             set -euo pipefail
+            bash tools/build_c5.sh
             idf.py build
-            idf.py merge-bin -o kodeos-flash.bin
+            (
+              cd build
+              python -m esptool --chip esp32p4 merge-bin -o kodeos-flash.bin -f raw @flash_args 0x1800000 storage.bin
+            )
             {
               echo "KodeOS source: $(git rev-parse HEAD)"
               echo "KodeOS SDK: $(git -C sdk rev-parse HEAD)"
+              echo "C5 source: $(git -C sdk/c5 rev-parse HEAD)"
               echo "ESP-IDF: v6.1"
               echo "Target: esp32p4"
               echo "Application: build/kodeos.bin"
+              echo "Storage image: build/storage.bin at 0x1800000"
               echo "Merged flash: build/kodeos-flash.bin"
             } > build/firmware-build-info.txt
             test -s build/kodeos.bin
+            test -s build/storage.bin
             test -s build/kodeos-flash.bin
-            ls -lh build/kodeos.bin build/kodeos-flash.bin
+            ls -lh build/kodeos.bin build/storage.bin build/kodeos-flash.bin
 
 
       - name: Download and verify ESP-EMU v1.0.0
@@ -116,6 +123,7 @@ jobs:
           path: |
             build/kodeos-flash.bin
             build/kodeos.bin
+            build/storage.bin
             build/kodeos.elf
             build/bootloader/bootloader.bin
             build/partition_table/partition-table.bin
