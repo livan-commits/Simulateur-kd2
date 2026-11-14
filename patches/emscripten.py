@@ -114,16 +114,28 @@ consumer_cmake_path.write_text(consumer_cmake)
 # also registers its real fonts, glyph descriptors and fluid renderer; include
 # those same upstream sources here so the official screens link correctly.
 asset_cmake = (
-    "file(GLOB KGUI_GLYPHS ${CMAKE_CURRENT_LIST_DIR}/../glyphs/*.c)\n"
-    "file(GLOB KGUI_FONTS ${CMAKE_CURRENT_LIST_DIR}/../fonts/*.c)\n"
-    "kui_sim_add(kgui_sim SOURCES ${CMAKE_CURRENT_LIST_DIR}/../kgui_fluid.c "
-    "${KGUI_GLYPHS} ${KGUI_FONTS} "
+    "file(GLOB KGUI_GLYPHS ${CMAKE_CURRENT_LIST_DIR}/../glyphs/*.c)\\n"
+    "file(GLOB KGUI_FONTS ${CMAKE_CURRENT_LIST_DIR}/../fonts/*.c)\\n"
 )
 consumer_cmake = replace_once(
     consumer_cmake,
     "kui_sim_add(kgui_sim SOURCES",
     asset_cmake + "kui_sim_add(kgui_sim SOURCES",
-    "official KGUI assets and fluid renderer",
+    "official KGUI asset source lists",
+)
+consumer_cmake = replace_once(
+    consumer_cmake,
+    "${KGUI_SCREENS}",
+    "${KGUI_SCREENS} ${CMAKE_CURRENT_LIST_DIR}/../kgui_fluid.c "
+    "${KGUI_GLYPHS} ${KGUI_FONTS}",
+    "official KGUI fonts, glyphs and fluid sources",
+)
+consumer_cmake = replace_once(
+    consumer_cmake,
+    "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens)",
+    "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens)\\n"
+    "target_compile_definitions(kgui_sim PRIVATE KGUI_SIM_NO_KODY_PACK)",
+    "disable unavailable optional Kody pack animation",
 )
 consumer_cmake_path.write_text(consumer_cmake)
 
