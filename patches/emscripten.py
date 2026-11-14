@@ -89,6 +89,20 @@ consumer_cmake = replace_once(
 )
 consumer_cmake_path.write_text(consumer_cmake)
 
+# The pinned SDK keeps KHAL and KDRV public headers in per-service folders.
+# Mirror the native host patch so transitive public headers (notably
+# kqp_signals.h -> khal_sync.h) resolve in the browser build as well.
+for component in ("khal", "kdrv"):
+    component_dirs = sorted((sdk / "components" / component).glob("*/include"))
+    for include_dir in component_dirs:
+        if include_dir.is_dir():
+            consumer_cmake = consumer_cmake.replace(
+                "    ${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port)",
+                "    ${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port\\n    " + str(include_dir) + ")",
+                1,
+            )
+consumer_cmake_path.write_text(consumer_cmake)
+
 main = main_path.read_text()
 main = replace_once(
     main,
