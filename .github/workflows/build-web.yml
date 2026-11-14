@@ -193,6 +193,9 @@ jobs:
           assert "kode_board.wasm" in html
           assert 'id="screen"' in html
           assert "time set=" in html
+          assert "uart_input" in html
+          assert 'text.toLowerCase().includes("kgui assets")' in html
+          assert "screenshot dst=console" in html
           assert "kodeos-flash.bin" in html
           assert "esp-emu/index.html" not in html
           PY
