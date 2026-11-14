@@ -1,0 +1,65 @@
+# Audit d'intégration des sources — Similateur KD Web
+
+Date de vérification : 2026-11-14
+
+## Références exactes vérifiées
+
+- Dépôt amont : [kodediy/KodeOS](https://github.com/kodediy/KodeOS), branche `develop`.
+- Sous-module `sdk` déclaré par KodeOS : [kodediy/kode-sdk](https://github.com/kodediy/kode-sdk/tree/1841cc8c13d4b2e3e4d7288b40cdac5de207a133).
+- Commit du SDK effectivement référencé par le gitlink `sdk` de KodeOS/develop : `1841cc8c13d4b2e3e4d7288b40cdac5de207a133`.
+- Simulateur KGUI amont : [components/kgui/sim](https://github.com/kodediy/KodeOS/tree/develop/components/kgui/sim).
+- Simulateur KUI amont : [components/kui/sim au commit épinglé](https://github.com/kodediy/kode-sdk/tree/1841cc8c13d4b2e3e4d7288b40cdac5de207a133/components/kui/sim).
+
+Le workflow récupère KodeOS sur `develop` avec les sous-modules récursifs. Git résout donc le sous-module SDK au commit enregistré dans KodeOS, plutôt que de prendre arbitrairement la tête de `kode-sdk/main`.
+
+## Ce qui est réellement repris
+
+| Élément | Provenance | État dans le portage Web |
+|---|---|---|
+| Écrans KGUI | `KodeOS/components/kgui/screens` | Sources C compilées directement dans la cible du simulateur |
+| Hôte du simulateur KGUI | `KodeOS/components/kgui/sim` | CMake amont utilisé comme point d'entrée |
+| Simulateur KUI | `kode-sdk/components/kui/sim` | Sources amont réutilisées, avec adaptation Emscripten |
+| LVGL | Dépendance FetchContent déclarée par KUI | Version demandée par la source amont : LVGL 9.6.0 |
+| SDL2 | Simulateur KUI | Liaison adaptée à SDL2 d'Emscripten |
+| Boucle d'événements | `kode-sdk/components/kui/sim/main.c` | Boucle native remplacée par `emscripten_set_main_loop` |
+| Image du boîtier | Ressource du simulateur KUI | Incorporée par le mécanisme CMake amont |
+
+Les écrans KGUI visibles dans le simulateur sont ceux que le code amont expose actuellement : `face`, `launcher`, `loading`, `settings` et `touch_test`.
+
+## Adaptations propres à Similateur KD
+
+- `patches/emscripten.py` modifie le CMake et le point d'entrée du simulateur pour la cible navigateur.
+- `.github/workflows/build-web.yml` automatise le checkout, la compilation Emscripten et le déploiement GitHub Pages.
+- Les chemins d'inclusion KGUI/SDK ajoutés dans le patch sont des adaptations de compilation ; ils ne constituent pas des composants officiels.
+
+Aucune interface de remplacement en HTML/CSS n'est utilisée pour dessiner les écrans KGUI.
+
+## Ce qui n'est pas encore intégré
+
+Le résultat actuel n'est pas une émulation complète du Kode Dot ni du firmware KodeOS. Ne sont pas encore exécutés comme un système complet :
+
+- démarrage et séquence de boot du firmware ;
+- Active Objects QP/C et ordonnanceur temps réel ;
+- services système et communication entre composants ;
+- pilotes matériels, GPIO, écran physique, tactile réel et capteurs ;
+- stockage/flash, partitions et périphériques spécifiques à l'ESP32-P4 ;
+- applications firmware complètes et leurs interactions avec le matériel.
+
+Les dépendances dont les écrans graphiques ont besoin peuvent apparaître dans les en-têtes transitifs sans que leurs services soient réellement démarrés dans le navigateur. La présence d'un chemin d'inclusion ne signifie donc pas que le sous-système est émulé.
+
+## Dernier état de compilation vérifié
+
+Workflow [Build and publish KGUI Web — run 43601692312](https://github.com/livan-commits/similateur-kd/actions/runs/43601692312), commit du projet `d7e9207c47c0bd099a3cd7b41f09b66361e64916).
+
+- Checkout KodeOS et sous-modules : réussi.
+- Installation Emscripten : réussie.
+- Adaptation du simulateur : réussie.
+- Configuration CMake : réussie.
+- Compilation : échoue vers 99 %, lors de la compilation de `kgui_screen_loading.c`, car `kqp.h` inclut `qpc.h` et ce dernier n'est pas encore résolu par les chemins d'inclusion du build.
+- Préparation du site et déploiement : non exécutés à cause de cet échec.
+
+Le prochain travail consiste à résoudre proprement la dépendance QP/C à partir de la structure du SDK épinglé, puis à relancer la compilation. La réussite ne sera déclarée qu'après compilation, déploiement et vérification des fichiers publiés.
+
+## Règle de provenance
+
+Chaque composant doit rester traçable vers son dépôt, son chemin et sa version. Les adaptations du portage Web doivent être identifiées comme telles. Une compilation réussie du simulateur graphique ne devra jamais être présentée comme une émulation complète du firmware.
