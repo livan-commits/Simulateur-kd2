@@ -139,6 +139,7 @@ jobs:
         run: |
           set -euo pipefail
           export CARGO_TARGET_DIR="$PWD/.cache/cargo-target"
+          cargo test --manifest-path parts/kode_board/Cargo.toml
           cargo build --release --target wasm32-unknown-unknown --manifest-path parts/kode_board/Cargo.toml
           mkdir -p dist/esp-emu/parts
           cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/kode_board.wasm" dist/esp-emu/parts/
