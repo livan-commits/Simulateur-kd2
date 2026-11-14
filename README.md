@@ -18,6 +18,7 @@ Utiliser le simulateur directement dans le navigateur, sur téléphone ou ordina
 ## Limites connues
 
 - Ce n'est pas encore une émulation complète de tous les composants du Kode Dot. Le contrôleur MIPI-DSI est contourné ; l'audio, la carte SD, l'IMU, le NFC/RFID, les vibrations, l'IR et plusieurs autres périphériques ne sont pas encore modélisés.
+- Le lecteur NFC ST25R3916B est compilé hors de l'image que l'émulateur démarre (`CONFIG_KODEOS_NFC=n`, posé par le patch headless) : sa sonde SPI2/IRQ ne se termine jamais dans ESP-EMU et figeait la marche de boot avant le démarrage de la console. Le matériel réel n'est pas concerné.
 - Le firmware ESP32-C5 est inclus dans l'image de stockage, mais le coprocesseur C5 n'est pas encore exécuté comme une seconde puce indépendante dans le navigateur.
 - La capacité PSRAM du modèle navigateur doit encore être vérifiée par rapport aux 32 Mo du matériel réel. Le framebuffer utilise moins d'un mégaoctet, mais cette différence peut compter pour des applications plus gourmandes.
 - La lecture du framebuffer est actuellement effectuée par snapshots complets quatre fois par seconde ; ce compromis privilégie la cohérence des pixels pendant que le pont mémoire est validé.
