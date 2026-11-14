@@ -105,7 +105,7 @@ jobs:
               html = html.replace("</head>", mobile + "</head>", 1)
           page.write_text(html)
           assert 'name="viewport"' in html
-          assert "aspect-ratio: 410 / 502" in html
+          assert "aspect-ratio: 602 / 979" in html
           print(f"Mobile KGUI viewport configured: {page.stat().st_size} bytes")
           PY
 
