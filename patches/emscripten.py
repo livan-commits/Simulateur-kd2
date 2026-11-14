@@ -60,7 +60,9 @@ consumer_cmake = replace_once(
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/klog/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kdrv/apps/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kaos/core/include "
-    "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kqp/include)",
+    "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kqp/include "
+    "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/qpc/include "
+    "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port)",
     "KGUI component header include path",
 )
 consumer_cmake_path.write_text(consumer_cmake)
