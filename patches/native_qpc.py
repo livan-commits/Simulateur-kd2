@@ -64,7 +64,7 @@ new = (
     "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens "
     "${CMAKE_CURRENT_LIST_DIR}/.. "
     "${CMAKE_CURRENT_LIST_DIR}/../include "
-    '" + str(sdk.parent / "components/kgui/glyphs") + " "'
+    "${CMAKE_CURRENT_LIST_DIR}/../glyphs "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kode_sys/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kdefs/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/klog/include "
