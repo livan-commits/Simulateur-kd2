@@ -46,7 +46,7 @@ jobs:
           command: |
             set -euo pipefail
             idf.py build
-            idf.py merge-bin -o build/kodeos-flash.bin
+            idf.py merge-bin -o kodeos-flash.bin
             {
               echo "KodeOS source: $(git rev-parse HEAD)"
               echo "KodeOS SDK: $(git -C sdk rev-parse HEAD)"
