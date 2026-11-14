@@ -88,8 +88,8 @@ jobs:
           set -euo pipefail
           python3 -m venv /tmp/elf-tools
           /tmp/elf-tools/bin/pip install pyelftools
-          /tmp/elf-tools/bin/python simulator/patches/export_framebuffer_symbols.py build/kodeos.elf build/framebuffer-symbols.json
-          test -s build/framebuffer-symbols.json
+          /tmp/elf-tools/bin/python simulator/patches/export_framebuffer_symbols.py build/kodeos.elf framebuffer-symbols.json
+          test -s framebuffer-symbols.json
 
       - name: Verify the actual console transport selected by ESP-IDF
         shell: bash
@@ -104,6 +104,7 @@ jobs:
           assert "CONFIG_ESP_CONSOLE_UART_DEFAULT=y" in cfg
           assert not any(line.startswith("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=") and line.endswith("=y") for line in cfg.splitlines())
           assert "CONFIG_ESP_CONSOLE_UART=y" in cfg
+          PY
 
       - name: Download and verify ESP-EMU v1.0.0
         shell: bash
