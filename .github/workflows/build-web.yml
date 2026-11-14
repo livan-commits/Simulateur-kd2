@@ -58,7 +58,7 @@ jobs:
             idf.py build
             (
               cd build
-              python -m esptool --chip esp32p4 merge-bin -o kodeos-flash.bin -f raw @flash_args
+              python -m esptool --chip esp32p4 merge-bin -o kodeos-flash.bin -f raw @flash_args 0x1800000 storage.bin
             )
             test -s build/kodeos.bin
             test -s build/storage.bin
