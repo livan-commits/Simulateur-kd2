@@ -195,7 +195,7 @@ jobs:
           manifest = json.loads(Path("dist/versions.json").read_text())
           assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
           assert manifest["renderer"].startswith("upstream KGUI/KUI")
-          for name in ("index.html", "kgui-preview.html", "kgui_sim.js", "kgui_sim.wasm", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js"):
+          for name in ("index.html", "kgui-preview.html", "kgui_sim.js", "kgui_sim.wasm", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js"):
               path = Path("dist") / name
               assert path.is_file() and path.stat().st_size > 0, name
               print(f"OK {path} ({path.stat().st_size} bytes)")
@@ -203,9 +203,11 @@ jobs:
           assert 'name="viewport"' in Path("dist/index.html").read_text()
           assert 'name="viewport"' in html
           assert "602 / 979" in html
-          assert "kgui_sim.js" in html
-          assert "WasmEmulator" in html
+          assert "esp-emu/index.html" in html
+          assert "kgui-preview.html" in html
           assert "kodeos-flash.bin" in html
+          preview = Path("dist/kgui-preview.html").read_text()
+          assert "kgui_sim.js" in preview
           PY
 
       - name: Configure GitHub Pages
