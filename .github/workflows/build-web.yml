@@ -30,6 +30,14 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
+      - name: Checkout ESP-EMU source for Virtual Parts ABI
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-emulator
+          ref: v1.0.0
+          path: esp-emulator
+          fetch-depth: 1
+
       - name: Verify pinned SDK revision
         shell: bash
         run: |
@@ -89,6 +97,142 @@ jobs:
           echo "Bundled Espressif ESP-EMU v${version} browser runtime."
           du -sh dist/esp32
 
+      - name: Install Rust and build Kode Dot TCA6408A Virtual Part
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Test and compile TCA6408A Virtual Part
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path hardware/parts/tca6408a/Cargo.toml
+          cargo build --release --target wasm32-unknown-unknown \
+            --manifest-path hardware/parts/tca6408a/Cargo.toml
+          mkdir -p dist/esp32/parts
+          cp hardware/parts/tca6408a/target/wasm32-unknown-unknown/release/kode_dot_tca6408a.wasm \
+            dist/esp32/parts/
+          ls -lh dist/esp32/parts/kode_dot_tca6408a.wasm
+
+      - name: Create Kode Dot hardware test page
+        shell: bash
+        run: |
+          cat > dist/esp32/kode-dot.html <<'HTML'
+          <!doctype html>
+          <html lang="fr">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta name="theme-color" content="#10151f">
+            <title>Laboratoire matériel Kode Dot — Similateur KD</title>
+            <style>
+              :root { color-scheme: dark; font: 16px system-ui; background: #10151f; color: #edf3fc; }
+              body { margin: 0; padding: 20px; max-width: 900px; margin-inline: auto; }
+              h1 { font-size: clamp(1.6rem, 5vw, 2.4rem); }
+              p { color: #b9c6d8; line-height: 1.5; }
+              section { background: #192536; border: 1px solid #35465d; border-radius: 14px; padding: 16px; margin: 16px 0; }
+              button, input { font: inherit; }
+              button { background: #294365; color: white; border: 1px solid #55749b; border-radius: 9px; padding: 10px 13px; margin: 4px; }
+              button:disabled { opacity: .45; }
+              pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0b111b; border-radius: 10px; padding: 12px; min-height: 120px; max-height: 45vh; overflow: auto; }
+              .controls { display: flex; flex-wrap: wrap; gap: 4px; }
+              small { color: #9eacc0; }
+            </style>
+          </head>
+          <body>
+            <h1>Laboratoire matériel Kode Dot DVT</h1>
+            <p>Prototype expérimental ESP32-P4 avec le modèle virtuel TCA6408A officiel du profil matériel Kode Dot. Sélectionne une image flash fusionnée ESP32-P4 au format .bin. Le fichier reste dans ton navigateur et n'est pas téléversé.</p>
+            <section>
+              <label for="firmware">Image flash fusionnée (.bin)</label><br><br>
+              <input id="firmware" type="file" accept=".bin,application/octet-stream">
+              <button id="run">Démarrer l'émulation</button>
+              <p><small>Le firmware doit être construit pour ESP32-P4. Le modèle TCA6408A est raccordé à SDA=GPIO4, SCL=GPIO5, INT=GPIO6, adresse I2C 0x20.</small></p>
+            </section>
+            <section>
+              <strong>Entrées physiques virtuelles</strong>
+              <p>Ces commandes agissent sur les entrées P0 à P6 de l'expandeur.</p>
+              <div class="controls">
+                <button data-input="bottom_press" disabled>Maintenir bouton bas</button>
+                <button data-input="bottom_release" disabled>Relâcher bouton bas</button>
+                <button data-input="pad_up_press" disabled>Pavé haut</button>
+                <button data-input="pad_up_release" disabled>Relâcher haut</button>
+                <button data-input="pad_left_press" disabled>Pavé gauche</button>
+                <button data-input="pad_left_release" disabled>Relâcher gauche</button>
+                <button data-input="pad_down_press" disabled>Pavé bas</button>
+                <button data-input="pad_down_release" disabled>Relâcher bas</button>
+                <button data-input="pad_right_press" disabled>Pavé droit</button>
+                <button data-input="pad_right_release" disabled>Relâcher droite</button>
+                <button data-input="imu_irq_assert" disabled>Interruption IMU</button>
+                <button data-input="imu_irq_release" disabled>Effacer IMU</button>
+                <button data-input="touch_irq_assert" disabled>Interruption tactile</button>
+                <button data-input="touch_irq_release" disabled>Effacer tactile</button>
+              </div>
+            </section>
+            <section>
+              <strong>Console UART0 / diagnostic</strong>
+              <pre id="log">En attente d'une image flash ESP32-P4…</pre>
+            </section>
+            <script type="module">
+              import init, { WasmEmulator } from "./pkg/esp_emu.js";
+              import { CosimPump } from "./cosim.js";
+
+              const logView = document.getElementById("log");
+              const runButton = document.getElementById("run");
+              const firmwareInput = document.getElementById("firmware");
+              const controls = [...document.querySelectorAll("[data-input]")];
+              let worker = null;
+              const log = (line) => {
+                logView.textContent += (logView.textContent ? "\\n" : "") + String(line);
+                logView.scrollTop = logView.scrollHeight;
+              };
+
+              runButton.addEventListener("click", async () => {
+                const file = firmwareInput.files?.[0];
+                if (!file) { log("Choisis d'abord une image .bin."); return; }
+                runButton.disabled = true;
+                try {
+                  await init();
+                  const emu = new WasmEmulator("esp32p4");
+                  emu.load_default_rom();
+                  emu.load_firmware(new Uint8Array(await file.arrayBuffer()));
+
+                  worker = new Worker("./part-worker.js", { type: "module" });
+                  worker.onmessage = (event) => {
+                    if (event.data?.type === "error") log("Part: " + event.data.text);
+                    if (event.data?.type === "loaded") log("Part chargée : " + event.data.name);
+                  };
+                  const channel = new MessageChannel();
+                  const pump = new CosimPump(emu, {
+                    tca6408a: { port: channel.port1, worker }
+                  });
+                  worker.postMessage({
+                    type: "start",
+                    port: channel.port2,
+                    module: "./parts/kode_dot_tca6408a.wasm",
+                    config: { pins: { SCL: 5, SDA: 4, INT: 6 } }
+                  }, [channel.port2]);
+
+                  if (!(await pump.waitForDevice())) {
+                    throw new Error("Le TCA6408A virtuel ne s'est pas attaché dans le délai prévu.");
+                  }
+                  pump.start((line) => log(line), (error) => log("Erreur émulateur : " + error));
+                  controls.forEach((button) => {
+                    button.disabled = false;
+                    button.addEventListener("click", () => {
+                      worker?.postMessage({ type: "input", kind: button.dataset.input });
+                    });
+                  });
+                  log("ESP32-P4 démarré avec TCA6408A virtuel à 0x20.");
+                } catch (error) {
+                  log("Échec du démarrage : " + (error?.stack || error));
+                  runButton.disabled = false;
+                }
+              });
+            </script>
+          </body>
+          </html>
+          HTML
+
       - name: Create simulator launcher
         shell: bash
         run: |
@@ -127,6 +271,10 @@ jobs:
                   <strong>Émulateur ESP32-P4 et ESP32</strong>
                   <small>Charger une image flash fusionnée .bin et lancer le processeur émulé avec ESP-EMU d'Espressif.</small>
                 </a>
+                <a href="./esp32/kode-dot.html">
+                  <strong>Laboratoire matériel Kode Dot</strong>
+                  <small>Prototype P4 avec expandeur GPIO TCA6408A virtuel et commandes de boutons.</small>
+                </a>
               </section>
               <footer>Projet indépendant. KodeOS/KUI et ESP-EMU restent les projets amont de leurs auteurs respectifs. L'émulation complète du Kode Dot n'est pas encore acquise.</footer>
             </main>
@@ -146,6 +294,7 @@ jobs:
             "kodeos_sdk_commit": "$sdk_commit",
             "expected_kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
             "esp_emu_version": "1.0.0",
+            "kode_dot_tca6408a_part": "0.1.0",
             "esp_emu_wasm_sha256": "1b55d715c614207d3a441ad3c834eca216891f85c907b0ac0b1d7d9746294873"
           }
           EOF
