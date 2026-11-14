@@ -110,6 +110,99 @@ consumer_cmake = consumer_cmake.replace(
 )
 consumer_cmake_path.write_text(consumer_cmake)
 
+# KGUI's standalone simulator CMake only adds screens. The firmware component
+# also registers its real fonts, glyph descriptors and fluid renderer; include
+# those same upstream sources here so the official screens link correctly.
+asset_cmake = (
+    "file(GLOB KGUI_GLYPHS ${CMAKE_CURRENT_LIST_DIR}/../glyphs/*.c)\n"
+    "file(GLOB KGUI_FONTS ${CMAKE_CURRENT_LIST_DIR}/../fonts/*.c)\n"
+    "kui_sim_add(kgui_sim SOURCES ${CMAKE_CURRENT_LIST_DIR}/../kgui_fluid.c "
+    "${KGUI_GLYPHS} ${KGUI_FONTS} "
+)
+consumer_cmake = replace_once(
+    consumer_cmake,
+    "kui_sim_add(kgui_sim SOURCES",
+    asset_cmake + "kui_sim_add(kgui_sim SOURCES",
+    "official KGUI assets and fluid renderer",
+)
+consumer_cmake_path.write_text(consumer_cmake)
+
+# The upstream KUI simulator deliberately excludes its cJSON/KHAL-backed pack
+# parser. Keep the official loading screen but compile out only its optional
+# Kody pack animation in this standalone graphical simulator.
+loading_path = sdk.parent / "components/kgui/screens/kgui_screen_loading.c"
+loading = loading_path.read_text()
+loading = replace_once(
+    loading,
+    "static lv_obj_t *s_kody = NULL;\n\n/** The loading role is on the player: it loops from here on. */\nstatic bool s_kody_playing = false;",
+    "#ifndef KGUI_SIM_NO_KODY_PACK\n"
+    "static lv_obj_t *s_kody = NULL;\n\n"
+    "/** The loading role is on the player: it loops from here on. */\n"
+    "static bool s_kody_playing = false;\n"
+    "#endif",
+    "loading Kody state",
+)
+loading = replace_once(
+    loading,
+    "static void on_loading_load_start(lv_event_t *e)\n{",
+    "#ifndef KGUI_SIM_NO_KODY_PACK\n"
+    "static void on_loading_load_start(lv_event_t *e)\n{",
+    "loading Kody callback guard start",
+)
+loading = replace_once(
+    loading,
+    "}\n\nvoid kgui_screen_loading_build(void)",
+    "}\n"
+    "#endif /* KGUI_SIM_NO_KODY_PACK */\n\n"
+    "void kgui_screen_loading_build(void)",
+    "loading Kody callback guard end",
+)
+loading = replace_once(
+    loading,
+    "    uint16_t w = 0U;\n"
+    "    uint16_t h = 0U;\n\n"
+    "    kui_pack_role_canvas(KUI_PACK_ROLE_LOADING, &w, &h);\n"
+    "    /* kui_kody_create() says why when it cannot make one. */\n"
+    "    s_kody = kui_kody_create(scr, w, h);\n"
+    "    if ( NULL != s_kody )\n"
+    "    {\n"
+    "        lv_obj_set_name(s_kody, \"loading_kody\");\n"
+    "        lv_obj_set_align(s_kody, LV_ALIGN_CENTER);\n"
+    "        (void)lv_obj_add_event_cb(scr, &on_loading_load_start,\n"
+    "                                  LV_EVENT_SCREEN_LOAD_START, NULL);\n"
+    "    }\n",
+    "#ifndef KGUI_SIM_NO_KODY_PACK\n"
+    "    uint16_t w = 0U;\n"
+    "    uint16_t h = 0U;\n\n"
+    "    kui_pack_role_canvas(KUI_PACK_ROLE_LOADING, &w, &h);\n"
+    "    /* kui_kody_create() says why when it cannot make one. */\n"
+    "    s_kody = kui_kody_create(scr, w, h);\n"
+    "    if ( NULL != s_kody )\n"
+    "    {\n"
+    "        lv_obj_set_name(s_kody, \"loading_kody\");\n"
+    "        lv_obj_set_align(s_kody, LV_ALIGN_CENTER);\n"
+    "        (void)lv_obj_add_event_cb(scr, &on_loading_load_start,\n"
+    "                                  LV_EVENT_SCREEN_LOAD_START, NULL);\n"
+    "    }\n"
+    "#endif\n",
+    "loading Kody pack use guard",
+)
+loading = replace_once(
+    loading,
+    "void kgui_screen_loading_kody_stop(void)\n{\n"
+    "    kui_kody_stop(s_kody);\n"
+    "    s_kody_playing = false;\n"
+    "}",
+    "void kgui_screen_loading_kody_stop(void)\n{\n"
+    "#ifndef KGUI_SIM_NO_KODY_PACK\n"
+    "    kui_kody_stop(s_kody);\n"
+    "    s_kody_playing = false;\n"
+    "#endif\n"
+    "}",
+    "loading Kody stop guard",
+)
+loading_path.write_text(loading)
+
 main = main_path.read_text()
 main = replace_once(
     main,
