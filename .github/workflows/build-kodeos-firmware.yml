@@ -134,6 +134,15 @@ jobs:
             exit 1
           fi
           echo "Confirmed: KodeOS reached kode_banner_print(); full 15-second UART trace captured with virtual I2C ACK devices."
+          if ! grep -F "|shot w=410 h=502 fmt=bmp16" "$logfile"; then
+            echo "::error::The real KGUI framebuffer screenshot was not returned by the KodeOS console."
+            exit 1
+          fi
+          if ! grep -F "|d=" "$logfile"; then
+            echo "::error::The KodeOS screenshot returned no Base64 framebuffer data."
+            exit 1
+          fi
+          echo "Confirmed: the real 410x502 KGUI RGB565 framebuffer was captured through the KodeOS screenshot command."
 
       - name: Publish ESP-EMU boot log
         if: always()
