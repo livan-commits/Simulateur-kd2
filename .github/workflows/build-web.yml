@@ -1,4 +1,4 @@
-name: Build and publish KGUI Web
+name: Build and publish KodeOS Web Emulator
 
 on:
   push:
@@ -176,7 +176,7 @@ jobs:
             "project": "similateur-kd",
             "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
             "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
-            "renderer": "upstream KGUI/KUI with LVGL, compiled to WebAssembly",
+            "renderer": "official ESP-EMU browser runtime for ESP32-P4; separate upstream KGUI/KUI/LVGL preview in WebAssembly",
             "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000",
             "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
             "esp_emu": "v1.0.0"
