@@ -74,7 +74,8 @@ jobs:
           emulator="$(find /tmp -type f -name esp-emu -perm -u+x -print -quit)"
           test -n "$emulator"
           echo "$emulator" > /tmp/esp-emu-path
-          "$emulator" --help | head -n 25
+          "$emulator" --help > /tmp/esp-emu-help.txt
+          sed -n '1,25p' /tmp/esp-emu-help.txt
 
       - name: Boot the real KodeOS flash image in ESP-EMU
         shell: bash
