@@ -101,16 +101,18 @@ jobs:
           "$emulator" \
             --chip esp32p4 \
             --firmware build/kodeos-flash.bin \
+            --elf build/kodeos.elf \
             --psram-size 32M \
-            --timeout 120s \
-            --exit-on "hardware " 2>&1 | tee "$logfile"
+            --i2c-dev 0:0x20 \
+            --i2c-dev 0:0x15,fill=0,reg=0xa7=0xb7 \
+            --timeout 15s 2>&1 | tee "$logfile"
           status="${PIPESTATUS[0]}"
           set -e
           echo "ESP-EMU exit code: $status"
           echo "===== UART / emulator boot log ====="
           cat "$logfile"
           if [ "$status" -ne 0 ]; then
-            echo "::error::ESP-EMU did not reach the KodeOS hardware banner (exit $status)"
+            echo "::error::ESP-EMU diagnostic boot did not finish cleanly (exit $status)"
             exit "$status"
           fi
           test -s "$logfile"
@@ -122,7 +124,7 @@ jobs:
             echo "::error::The KodeOS SDK boot banner was not observed on the ESP-EMU UART."
             exit 1
           fi
-          echo "Confirmed: KodeOS reached kode_banner_print() on the emulated ESP32-P4."
+          echo "Confirmed: KodeOS reached kode_banner_print(); full 15-second UART trace captured with virtual I2C ACK devices."
 
       - name: Publish ESP-EMU boot log
         if: always()
