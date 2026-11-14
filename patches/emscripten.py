@@ -133,6 +133,13 @@ consumer_cmake = replace_once(
 )
 consumer_cmake_path.write_text(consumer_cmake)
 
+# Emscripten must emit an HTML launcher as well as the JS/WASM payload.
+# Set the executable suffix on the actual CMake target (the cache variable
+# CMAKE_EXECUTABLE_SUFFIX is not honored by this upstream target).
+consumer_cmake = consumer_cmake_path.read_text()
+consumer_cmake += '\\nset_target_properties(kgui_sim PROPERTIES SUFFIX ".html")\\n'
+consumer_cmake_path.write_text(consumer_cmake)
+
 # The upstream KUI simulator deliberately excludes its cJSON/KHAL-backed pack
 # parser. Keep the official loading screen but compile out only its optional
 # Kody pack animation in this standalone graphical simulator.
