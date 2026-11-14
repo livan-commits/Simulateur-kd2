@@ -135,7 +135,8 @@ jobs:
             }
             if (typeof proto.uart_input !== "function") throw new Error("ESP-EMU UART input API missing");
           } catch (error) {
-            console.log("Node API introspection unavailable:", error.stack || error);
+            console.error("Node API introspection failed:", error.stack || error);
+            throw error;
           }
           JS
 
