@@ -103,6 +103,27 @@ jobs:
           </style>
           """
               html = html.replace("</head>", mobile + "</head>", 1)
+          interaction = """<script>
+          (() => {
+            const attach = () => {
+              const canvas = document.querySelector("canvas.emscripten");
+              if (!canvas) return;
+              canvas.tabIndex = 0;
+              canvas.setAttribute("aria-label", "Simulateur graphique Kode Dot. Flèches : pavé directionnel ; Entrée : bouton TOP ; Échap : bouton BOT.");
+              canvas.addEventListener("pointerdown", () => canvas.focus({ preventScroll: true }));
+              window.addEventListener("keydown", (event) => {
+                if (document.activeElement !== canvas) return;
+                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+                  event.preventDefault();
+                }
+              }, { passive: false });
+            };
+            if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach);
+            else attach();
+          })();
+          </script>
+          """
+          html = html.replace("</body>", interaction + "</body>", 1)
           page.write_text(html)
           assert 'name="viewport"' in html
           assert "aspect-ratio: 602 / 979" in html
