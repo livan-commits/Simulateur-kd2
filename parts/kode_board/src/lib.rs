@@ -155,8 +155,8 @@ impl Device for KodeBoard {
                 .set("tca6408a", "0x20")
                 .set("cst820", "0x15")
                 .set("touch", self.touch_pressed)
-                .set("x", self.touch_x)
-                .set("y", self.touch_y)
+                .set("x", self.touch_x as u32)
+                .set("y", self.touch_y as u32)
                 .set("buttons", format!("0x{:02X}", self.tca_input & 0x3F))
                 .set("panel_power", (self.tca_output & (1 << 7)) != 0),
         )
