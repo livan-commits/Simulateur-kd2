@@ -1,0 +1,45 @@
+name: Test Kode Dot virtual board part
+
+on:
+  push:
+    branches: [web-framebuffer-bridge]
+    paths:
+      - "parts/kode_board/**"
+      - ".github/workflows/test-kode-board.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-kode-board-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout simulator
+        uses: actions/checkout@v4
+
+      - name: Checkout official ESP-EMU v1.0.0 part SDK
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-emulator
+          ref: v1.0.0
+          path: .cache/esp-emulator-src
+          fetch-depth: 1
+
+      - name: Install Rust and WebAssembly target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Run I2C and touch unit tests
+        run: cargo test --manifest-path parts/kode_board/Cargo.toml
+
+      - name: Build WebAssembly part
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$PWD/.cache/cargo-target"
+          cargo build --release --target wasm32-unknown-unknown --manifest-path parts/kode_board/Cargo.toml
+          test -s "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/kode_board.wasm"

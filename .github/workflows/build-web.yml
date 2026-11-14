@@ -2,7 +2,7 @@ name: Build and publish KodeOS Web Emulator
 
 on:
   push:
-    branches: [main]
+    branches: [main, web-framebuffer-bridge, web-psram-bridge-final]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout this project
         uses: actions/checkout@v4
+
+      - name: Validate firmware workflow YAML syntax
+        run: ruby -e 'require "yaml"; YAML.load_file(".github/workflows/build-kodeos-firmware.yml")'
 
       - name: Checkout official KodeOS sources
         uses: actions/checkout@v4
@@ -68,23 +71,28 @@ jobs:
             test -s build/kodeos-flash.bin
             ls -lh build/kodeos.bin build/storage.bin build/kodeos-flash.bin
 
-      - name: Install Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.64
-          actions-cache-folder: emsdk-cache
-
-      - name: Patch the upstream simulator for browser event loop and SDL2
-        run: python3 "$GITHUB_WORKSPACE/patches/emscripten.py" upstream/sdk
-
-      - name: Configure WebAssembly build
+      - name: Verify the actual console transport selected by ESP-IDF
+        shell: bash
         run: |
-          emcmake cmake -S upstream/components/kgui/sim -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_EXECUTABLE_SUFFIX=.html
+          python3 - <<'PY'
+          from pathlib import Path
+          cfg = Path("upstream/sdkconfig").read_text()
+          keys = ("CONFIG_ESP_CONSOLE_UART=", "CONFIG_ESP_CONSOLE_UART_DEFAULT=", "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=", "CONFIG_ESP_CONSOLE_UART_NUM=", "CONFIG_KHAL_CONSOLE_DOCK=", "CONFIG_KODEOS_CONSOLE=")
+          for line in cfg.splitlines():
+              if line.startswith(keys):
+                  print(line)
+          assert "CONFIG_ESP_CONSOLE_UART_DEFAULT=y" in cfg
+          assert not any(line.startswith("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=") and line.endswith("=y") for line in cfg.splitlines())
+          assert "CONFIG_ESP_CONSOLE_UART=y" in cfg
 
-      - name: Compile official KGUI simulator
-        run: cmake --build build --parallel 2
+      - name: Export KGUI framebuffer symbols from the real firmware ELF
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/elf-tools
+          /tmp/elf-tools/bin/pip install pyelftools
+          /tmp/elf-tools/bin/python patches/export_framebuffer_symbols.py upstream/build/kodeos.elf upstream/build/framebuffer-symbols.json
+          test -s upstream/build/framebuffer-symbols.json
 
       - name: Download ESP-EMU v1.0.0 browser runtime
         shell: bash
@@ -121,74 +129,59 @@ jobs:
                       print(source[max(0, pos-220):pos+520].replace("\\n", " ")[:800])
           PY
 
+          node --input-type=module <<'JS'
+          try {
+            const api = await import("./dist/esp-emu/pkg/esp_emu.js");
+            console.log("ESP-EMU exports:", Object.keys(api));
+            const proto = api.WasmEmulator.prototype;
+            const names = Object.getOwnPropertyNames(proto);
+            console.log("ESP-EMU complete WasmEmulator API:", names);
+            for (const name of names) {
+              if (/uart|psram|console|input|write|send|load|run|reset|read|memory|ram|peek|dump/i.test(name)) {
+                const fn = proto[name];
+                console.log(name + "(" + fn.length + "): " + String(fn).slice(0, 900));
+              }
+            }
+            if (typeof proto.uart_input !== "function") throw new Error("ESP-EMU UART input API missing");
+            if (typeof proto.read_memory !== "function") throw new Error("ESP-EMU direct memory read API missing");
+          } catch (error) {
+            console.error("Node API introspection failed:", error.stack || error);
+            throw error;
+          }
+          JS
+
+      - name: Checkout official ESP-EMU v1.0.0 virtual-part SDK
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-emulator
+          ref: v1.0.0
+          path: .cache/esp-emulator-src
+          fetch-depth: 1
+
+      - name: Build the Kode Dot I2C virtual board part
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Compile Kode Dot I2C virtual board to WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$PWD/.cache/cargo-target"
+          cargo test --manifest-path parts/kode_board/Cargo.toml
+          cargo build --release --target wasm32-unknown-unknown --manifest-path parts/kode_board/Cargo.toml
+          mkdir -p dist/esp-emu/parts
+          cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/kode_board.wasm" dist/esp-emu/parts/
+          test -s dist/esp-emu/parts/kode_board.wasm
+
       - name: Prepare single-page KodeOS web emulator
         shell: bash
         run: |
-          mkdir -p dist
-          cp build/kgui_sim.html dist/kgui-preview.html
-          cp build/kgui_sim.js dist/
-          cp build/kgui_sim.wasm dist/
           mkdir -p dist/firmware
           cp upstream/build/kodeos-flash.bin dist/firmware/
+          cp upstream/build/framebuffer-symbols.json dist/framebuffer-symbols.json
           cp web/index.html dist/index.html
           touch dist/.nojekyll
-
-      - name: Make KGUI emulator fit mobile browsers
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          page = Path("dist/kgui-preview.html")
-          html = page.read_text()
-          html = html.replace("<html lang=en-us>", '<html lang="fr">', 1)
-          html = html.replace("<title>Emscripten-Generated Code</title>",
-                              "<title>Similateur Kode Dot — KGUI</title>", 1)
-          if 'name="viewport"' not in html:
-              mobile = """<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-          <meta name="theme-color" content="#10151f">
-          <style>
-            html, body { margin: 0; min-height: 100%; background: #10151f; color: #edf3fc; }
-            body { min-height: 100vh; min-height: 100dvh; box-sizing: border-box; padding: 12px;
-                   display: flex; flex-direction: column; align-items: center; justify-content: center;
-                   overflow: auto; }
-            #emscripten_logo, #controls, #output { display: none !important; }
-            #status { color: #dce7f7; margin: 8px auto; text-align: center; }
-            .emscripten_border { width: 100%; border: 0; display: flex; justify-content: center; }
-            canvas.emscripten {
-              display: block; width: min(602px, calc(100vw - 24px), calc((100dvh - 24px) * 602 / 979));
-              height: auto; aspect-ratio: 602 / 979; object-fit: contain;
-              background: #000; touch-action: none;
-            }
-          </style>
-          """
-              html = html.replace("</head>", mobile + "</head>", 1)
-          interaction = """<script>
-          (() => {
-            const attach = () => {
-              const canvas = document.querySelector("canvas.emscripten");
-              if (!canvas) return;
-              canvas.tabIndex = 0;
-              canvas.setAttribute("aria-label", "Simulateur Kode Dot. Flèches : pavé directionnel ; Entrée : bouton TOP ; Échap : bouton BOT.");
-              canvas.addEventListener("pointerdown", () => canvas.focus({ preventScroll: true }));
-              window.addEventListener("keydown", (event) => {
-                if (document.activeElement !== canvas) return;
-                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
-                  event.preventDefault();
-                }
-              }, { passive: false });
-            };
-            if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach);
-            else attach();
-          })();
-          </script>
-          """
-          html = html.replace("</body>", interaction + "</body>", 1)
-          page.write_text(html)
-          assert 'name="viewport"' in html
-          assert "aspect-ratio: 602 / 979" in html
-          print(f"Mobile KGUI viewport configured: {page.stat().st_size} bytes")
-          PY
 
       - name: Write source manifest
         shell: bash
@@ -198,11 +191,12 @@ jobs:
             "project": "similateur-kd",
             "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
             "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
-            "renderer": "official ESP-EMU browser runtime for ESP32-P4; KodeOS/KGUI framebuffer is headless RGB565 in P4 PSRAM and captured through the native screenshot console; separate upstream KGUI/KUI/LVGL preview",
+            "renderer": "official ESP-EMU browser runtime executing pinned KodeOS ESP32-P4 firmware; real KGUI RGB565 framebuffer read directly from the firmware's PSRAM through ESP-EMU read_memory",
             "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000; simulator-only headless display overlay",
             "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
             "esp_emu": "v1.0.0",
-            "display": "410x502 RGB565 framebuffer rendered by real KGUI; CO5300 MIPI-DSI hardware path bypassed"
+            "display": "410x502 RGB565 framebuffer rendered by real KGUI and polled directly from PSRAM using ELF-exported symbols; CO5300 MIPI-DSI bypassed",
+            "virtual_parts": "TCA6408A at I2C 0x20 and CST820 at I2C 0x15; GPIO5 SCL, GPIO4 SDA, GPIO6 IRQ, TOP key on GPIO35"
           }
           EOF
           cat dist/versions.json
@@ -217,19 +211,28 @@ jobs:
 
           manifest = json.loads(Path("dist/versions.json").read_text())
           assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
-          assert "ESP-EMU" in manifest["renderer"] and "KGUI/KUI/LVGL" in manifest["renderer"]
-          for name in ("index.html", "kgui-preview.html", "kgui_sim.js", "kgui_sim.wasm", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js"):
+          assert "ESP-EMU" in manifest["renderer"] and "real KGUI" in manifest["renderer"]
+          symbols = json.loads(Path("dist/framebuffer-symbols.json").read_text())
+          assert symbols["width"] == 410 and symbols["height"] == 502
+          assert symbols["bytes_per_pixel"] == 2 and symbols["max_read_bytes"] == 4096
+          for key in ("front_pointer_address", "sequence_address", "dirty_y1_address", "dirty_y2_address"):
+              assert int(symbols[key], 16) > 0
+          for name in ("framebuffer-symbols.json", "index.html", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js", "esp-emu/part-worker.js", "esp-emu/vendor/esp_cosim_pb.js", "esp-emu/parts/kode_board.wasm"):
               path = Path("dist") / name
               assert path.is_file() and path.stat().st_size > 0, name
               print(f"OK {path} ({path.stat().st_size} bytes)")
           html = Path("dist/index.html").read_text()
           assert 'name="viewport"' in html
-          assert "esp-emu/index.html" in html
-          assert "kgui-preview.html" in html
+          assert "CosimPump" in html
+          assert "kode_board.wasm" in html
+          assert 'id="screen"' in html
+          assert "time set=" in html
+          assert "uart_input" in html
+          assert "read_memory(" in html
+          assert "framebuffer-symbols.json" in html
+          assert "screenshot dst=console" not in html
           assert "kodeos-flash.bin" in html
-          preview = Path("dist/kgui-preview.html").read_text()
-          assert "602 / 979" in preview
-          assert "kgui_sim.js" in preview
+          assert "esp-emu/index.html" not in html
           PY
 
       - name: Configure GitHub Pages
@@ -241,6 +244,7 @@ jobs:
           path: dist
 
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

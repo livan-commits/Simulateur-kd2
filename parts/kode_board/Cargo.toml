@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "kode_board"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+esp-part = { path = "../../.cache/esp-emulator-src/esp-part" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

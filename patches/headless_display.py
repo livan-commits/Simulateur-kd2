@@ -82,15 +82,19 @@ static bool web_headless_buffers_init(void)
 
 static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
 {
-    if ( (NULL == front) || (y2 <= y1) )
+    if ( NULL == front )
     {
         return;
     }
+    (void)y1;
+    (void)y2;
     (void)esp_cache_msync(front, KDRV_DISPLAY_FB_BYTES, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     ++g_kode_web_fb_seq; /* odd: publishing */
     g_kode_web_fb_front = (uint32_t)(uintptr_t)front;
-    g_kode_web_fb_dirty_y1 = (uint32_t)y1;
-    g_kode_web_fb_dirty_y2 = (uint32_t)y2;
+    /* The browser polls more slowly than LVGL flushes. Publish a full-frame
+       snapshot so several intermediate dirty rectangles cannot be lost. */
+    g_kode_web_fb_dirty_y1 = 0U;
+    g_kode_web_fb_dirty_y2 = KBSP_LCD_V_RES;
     ++g_kode_web_fb_seq; /* even: stable */
 }
 #endif
@@ -229,7 +233,8 @@ static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
     defaults = root / "sdkconfig.defaults"
     config = defaults.read_text() if defaults.is_file() else ""
     for key, value in (
-        # ESP-EMU's browser terminal is UART0; keep its input and output bidirectional.
+        # ESP-EMU's browser terminal is UART0. Keep the console bidirectional
+        # there instead of selecting the USB-Serial/JTAG endpoint.
         ("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", "n"),
         ("CONFIG_ESP_CONSOLE_UART_DEFAULT", "y"),
         # The dock CDC-ACM port claims the USB OTG console; browser input is UART0.
