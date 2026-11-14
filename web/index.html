@@ -317,7 +317,7 @@
         running = true;
         $("sync").disabled = false;
         if (framebufferTimer) clearInterval(framebufferTimer);
-        framebufferTimer = setInterval(pollFramebuffer, 500);
+        framebufferTimer = setInterval(pollFramebuffer, 250);
       } catch (error) {
         setStatus("Échec du démarrage", "warn");
         log("[erreur] " + (error?.stack || error));
