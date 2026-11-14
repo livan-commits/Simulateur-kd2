@@ -195,7 +195,7 @@ static bool web_headless_buffers_init(void)
                  if not line.startswith(key + "=")
                  and line != f"# {key} is not set"]
         lines.append(f"{key}={value}")
-        config = "\\n".join(lines) + "\\n"
+        config = "\n".join(lines) + "\n"
     defaults.write_text(config)
 
     print(f"Applied headless framebuffer overlay to {display}")
