@@ -49,7 +49,7 @@ new = (
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kaos/core/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kqp/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/qpc/include "
-    "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port"
+    "${target}"
 )
 # KHAL is split into one include directory per service (sync, gpio, i2c, ...).
 # Add the real upstream directories rather than stubbing hardware APIs.
@@ -57,7 +57,7 @@ khal_dirs = sorted((sdk / "components/khal").glob("*/include"))
 for include_dir in khal_dirs:
     if include_dir.is_dir():
         relative = os.path.relpath(include_dir, consumer_cmake.parent)
-        new = new[:-1] + " ${CMAKE_CURRENT_LIST_DIR}/" + relative + ")"
+        new = new[:-1] + " " + str(include_dir) + ")"
 
 if cmake.count(old) != 1:
     raise SystemExit(
