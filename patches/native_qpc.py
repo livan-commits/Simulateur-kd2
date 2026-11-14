@@ -49,12 +49,13 @@ new = (
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kqp/include "
     "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/qpc/include "
 ) + str(target)
-# KHAL is split into one include directory per service (sync, gpio, i2c, ...).
-# Add the real upstream directories rather than stubbing hardware APIs.
-khal_dirs = sorted((sdk / "components/khal").glob("*/include"))
-for include_dir in khal_dirs:
-    if include_dir.is_dir():
-        new += " " + str(include_dir)
+# KHAL and KDRV are split into per-service/per-chip include directories.
+# Add real upstream headers; do not replace hardware APIs with stubs.
+for component in ("khal", "kdrv"):
+    component_dirs = sorted((sdk / "components" / component).glob("*/include"))
+    for include_dir in component_dirs:
+        if include_dir.is_dir():
+            new += " " + str(include_dir)
 new += ")"
 if cmake.count(old) != 1:
     raise SystemExit(
