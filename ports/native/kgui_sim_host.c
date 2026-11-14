@@ -10,7 +10,6 @@
 
 #define SUBJECT_TEXT_LEN 256U
 
-lv_obj_t *kgui_screen_dark = NULL;
 lv_obj_t *kgui_screen_loading = NULL;
 lv_obj_t *kgui_screen_settings = NULL;
 
