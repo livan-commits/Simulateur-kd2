@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "kui_sim.h"
 #include "kgui_screens.h"
@@ -25,11 +26,15 @@ static char tp_text[SUBJECT_TEXT_LEN], tp_prev[SUBJECT_TEXT_LEN];
 static lv_obj_t *get_face(void) { return kgui_screen_face; }
 static lv_obj_t *get_launcher(void) { return kgui_screen_launcher; }
 static lv_obj_t *get_touch_test(void) { return kgui_screen_touch_test; }
+static lv_obj_t *get_loading(void) { return kgui_screen_loading; }
+static lv_obj_t *get_settings(void) { return kgui_screen_settings; }
 
 const kui_sim_screen_t kui_sim_screens[] = {
     { "face", get_face },
     { "launcher", get_launcher },
     { "touch_test", get_touch_test },
+    { "loading", get_loading },
+    { "settings", get_settings },
 };
 const uint32_t kui_sim_screen_count =
     (uint32_t)(sizeof(kui_sim_screens) / sizeof(kui_sim_screens[0]));
@@ -78,7 +83,21 @@ void kgui_screens_init(void)
     /* These are the unchanged KodeOS screen builders. */
     kgui_screen_face_build();
     kgui_screen_launcher_build();
+    kgui_screen_loading_build();
+    kgui_screen_settings_build();
     kgui_screen_touch_test_build();
+
+    /* This graphical host has no firmware clock or battery service. */
+    time_t now = time(NULL);
+    struct tm local;
+    if (localtime_r(&now, &local) != NULL) {
+        kgui_screen_face_time(local.tm_hour, local.tm_min, false, false);
+    }
+    kgui_screen_face_date(true);
+    kgui_screen_face_pile(true, 85U, KGUI_PILE_MEDIUM, false);
+    kgui_screen_settings_battery(85U, lv_color_hex(0x4f9b73U));
+    kgui_screen_settings_level(100U);
+    kgui_screen_settings_volume(70U);
 }
 
 void kui_sim_setup(void)
