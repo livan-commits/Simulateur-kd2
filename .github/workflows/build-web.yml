@@ -202,11 +202,11 @@ jobs:
           html = Path("dist/index.html").read_text()
           assert 'name="viewport"' in Path("dist/index.html").read_text()
           assert 'name="viewport"' in html
-          assert "602 / 979" in html
           assert "esp-emu/index.html" in html
           assert "kgui-preview.html" in html
           assert "kodeos-flash.bin" in html
           preview = Path("dist/kgui-preview.html").read_text()
+          assert "602 / 979" in preview
           assert "kgui_sim.js" in preview
           PY
 
