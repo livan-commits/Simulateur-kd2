@@ -187,7 +187,6 @@ static bool web_headless_buffers_init(void)
     defaults = root / "sdkconfig.defaults"
     config = defaults.read_text() if defaults.is_file() else ""
     for key, value in (
-        ("CONFIG_KODEOS_MIRROR", "n"),
         # ESP-EMU's browser terminal is UART0. Keep the console bidirectional
         # there instead of selecting the USB-Serial/JTAG endpoint.
         ("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", "n"),
@@ -201,7 +200,7 @@ static bool web_headless_buffers_init(void)
     defaults.write_text(config)
 
     print(f"Applied headless framebuffer overlay to {display}")
-    print(f"Disabled hardware JPEG mirror and selected bidirectional UART0 console in {defaults}")
+    print(f"Selected the bidirectional UART0 console in {defaults}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
