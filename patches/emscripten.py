@@ -52,7 +52,10 @@ consumer_cmake = consumer_cmake_path.read_text()
 consumer_cmake = replace_once(
     consumer_cmake,
     "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens)",
-    "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens ${CMAKE_CURRENT_LIST_DIR}/..)",
+    "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens "
+    "${CMAKE_CURRENT_LIST_DIR}/.. "
+    "${CMAKE_CURRENT_LIST_DIR}/../include "
+    "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/kode_sys/include)",
     "KGUI component header include path",
 )
 consumer_cmake_path.write_text(consumer_cmake)
