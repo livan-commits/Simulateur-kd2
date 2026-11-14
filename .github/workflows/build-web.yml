@@ -21,6 +21,9 @@ jobs:
       - name: Checkout this project
         uses: actions/checkout@v4
 
+      - name: Validate firmware workflow YAML syntax
+        run: ruby -e 'require "yaml"; YAML.load_file(".github/workflows/build-kodeos-firmware.yml")'
+
       - name: Checkout official KodeOS sources
         uses: actions/checkout@v4
         with:
