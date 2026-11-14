@@ -3,7 +3,7 @@ name: Build KodeOS ESP32-P4 firmware
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, web-framebuffer-bridge]
     paths:
       - ".github/workflows/build-kodeos-firmware.yml"
       - "patches/headless_display.py"
