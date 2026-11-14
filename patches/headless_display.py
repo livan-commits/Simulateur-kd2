@@ -185,15 +185,23 @@ static bool web_headless_buffers_init(void)
     # The JPEG mirror depends on PPA/JPEG hardware and is not needed: the
     # screenshot verb already serializes the actual RGB565 framebuffer as BMP.
     defaults = root / "sdkconfig.defaults"
-    if defaults.is_file():
-        text = defaults.read_text()
-        if "CONFIG_KODEOS_MIRROR=" not in text:
-            defaults.write_text(text.rstrip() + "\nCONFIG_KODEOS_MIRROR=n\n")
-    else:
-        defaults.write_text("CONFIG_KODEOS_MIRROR=n\n")
+    config = defaults.read_text() if defaults.is_file() else ""
+    for key, value in (
+        ("CONFIG_KODEOS_MIRROR", "n"),
+        # ESP-EMU's browser terminal is UART0. Keep the console bidirectional
+        # there instead of selecting the USB-Serial/JTAG endpoint.
+        ("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", "n"),
+        ("CONFIG_ESP_CONSOLE_UART_DEFAULT", "y"),
+    ):
+        lines = [line for line in config.splitlines()
+                 if not line.startswith(key + "=")
+                 and line != f"# {key} is not set"]
+        lines.append(f"{key}={value}")
+        config = "\\n".join(lines) + "\\n"
+    defaults.write_text(config)
 
     print(f"Applied headless framebuffer overlay to {display}")
-    print(f"Disabled the hardware JPEG mirror in {defaults}")
+    print(f"Disabled hardware JPEG mirror and selected bidirectional UART0 console in {defaults}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
