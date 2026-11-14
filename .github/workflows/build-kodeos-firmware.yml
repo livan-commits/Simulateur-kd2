@@ -111,6 +111,15 @@ jobs:
             exit "$status"
           fi
           test -s build/esp-emu-boot.log
+          if ! grep -F "hardware " build/esp-emu-boot.log; then
+            echo "::error::The KodeOS hardware boot banner was not observed on the ESP-EMU UART."
+            exit 1
+          fi
+          if ! grep -F "sdk " build/esp-emu-boot.log; then
+            echo "::error::The KodeOS SDK boot banner was not observed on the ESP-EMU UART."
+            exit 1
+          fi
+          echo "Confirmed: KodeOS reached kode_banner_print() on the emulated ESP32-P4."
 
       - name: Publish ESP-EMU boot log
         if: always()
