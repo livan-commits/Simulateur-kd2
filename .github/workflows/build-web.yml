@@ -142,6 +142,7 @@ jobs:
               }
             }
             if (typeof proto.uart_input !== "function") throw new Error("ESP-EMU UART input API missing");
+            if (typeof proto.read_memory !== "function") throw new Error("ESP-EMU direct memory read API missing");
           } catch (error) {
             console.error("Node API introspection failed:", error.stack || error);
             throw error;
@@ -189,11 +190,11 @@ jobs:
             "project": "similateur-kd",
             "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
             "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
-            "renderer": "official ESP-EMU browser runtime executing pinned KodeOS ESP32-P4 firmware; real KGUI RGB565 framebuffer captured by the native KodeOS screenshot console command over UART0",
+            "renderer": "official ESP-EMU browser runtime executing pinned KodeOS ESP32-P4 firmware; real KGUI RGB565 framebuffer read directly from the firmware's PSRAM through ESP-EMU read_memory",
             "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000; simulator-only headless display overlay",
             "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
             "esp_emu": "v1.0.0",
-            "display": "410x502 RGB565 framebuffer rendered by real KGUI and exported as BMP16 over UART0; CO5300 MIPI-DSI bypassed",
+            "display": "410x502 RGB565 framebuffer rendered by real KGUI and polled directly from PSRAM using ELF-exported symbols; CO5300 MIPI-DSI bypassed",
             "virtual_parts": "TCA6408A at I2C 0x20 and CST820 at I2C 0x15; GPIO5 SCL, GPIO4 SDA, GPIO6 IRQ, TOP key on GPIO35"
           }
           EOF
