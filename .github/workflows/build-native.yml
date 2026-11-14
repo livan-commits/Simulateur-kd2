@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "ports/qpc-posix/**"
-      - "patches/native_qpc.py"
+      - "ports/native/**"
+      - "patches/native_host.py"
       - ".github/workflows/build-native.yml"
       - "docs/native-host-simulator.md"
   workflow_dispatch:
@@ -47,8 +47,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes build-essential cmake pkg-config libsdl2-dev
 
-      - name: Select official QP/C POSIX host port
-        run: python3 patches/native_qpc.py upstream/sdk "$GITHUB_WORKSPACE"
+      - name: Select official KGUI screens for native host profile
+        run: python3 patches/native_host.py upstream/sdk "$GITHUB_WORKSPACE"
 
       - name: Configure native KGUI simulator
         run: |
