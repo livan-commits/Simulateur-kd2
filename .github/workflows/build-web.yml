@@ -71,6 +71,465 @@ jobs:
             test -s build/kodeos-flash.bin
             ls -lh build/kodeos.bin build/storage.bin build/kodeos-flash.bin
 
+      - name: Verify the actual console transport selected by ESP-IDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -E '^(CONFIG_ESP_CONSOLE_UART=|CONFIG_ESP_CONSOLE_UART_DEFAULT=|CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=|CONFIG_ESP_CONSOLE_UART_NUM=|CONFIG_KHAL_CONSOLE_DOCK=|CONFIG_KODEOS_CONSOLE=)' upstream/sdkconfig || true
+          grep -q '^CONFIG_ESP_CONSOLE_UART_DEFAULT=y        shell: bash
+        run: |
+          set -euo pipefail
+          archive="esp-emu-1.0.0-wasm.tar.gz"
+          base="https://github.com/espressif/esp-emulator/releases/download/v1.0.0"
+          curl -fsSL "$base/$archive" -o "/tmp/$archive"
+          curl -fsSL "$base/SHA256SUMS" -o /tmp/esp-emu-SHA256SUMS
+          grep "  $archive\$" /tmp/esp-emu-SHA256SUMS > /tmp/esp-emu-checksum
+          (cd /tmp && sha256sum -c esp-emu-checksum)
+          mkdir -p /tmp/esp-emu-release dist/esp-emu
+          tar -xzf "/tmp/$archive" -C /tmp/esp-emu-release
+          www_dir="$(find /tmp/esp-emu-release -type d -name www -print -quit)"
+          test -n "$www_dir"
+          cp -a "$www_dir"/. dist/esp-emu/
+
+      - name: Inspect official ESP-EMU browser hooks for the firmware display bridge
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          terms = ("WasmEmulator", "load_firmware", "psram", "read_memory", "memory_read", "uart0", "run_batch", "cosim_attach", "set_psram")
+          for name in ("index.html", "app.js", "cosim.js", "pkg/esp_emu.js"):
+              path = Path("dist/esp-emu") / name
+              if not path.is_file():
+                  continue
+              source = path.read_text(errors="replace")
+              print(f"\\n===== {name} ({len(source)} chars) =====")
+              for term in terms:
+                  pos = source.find(term)
+                  if pos >= 0:
+                      print(f"--- {term} ---")
+                      print(source[max(0, pos-220):pos+520].replace("\\n", " ")[:800])
+          PY
+
+          node --input-type=module <<'JS'
+          try {
+            const api = await import("./dist/esp-emu/pkg/esp_emu.js");
+            console.log("ESP-EMU exports:", Object.keys(api));
+            const proto = api.WasmEmulator.prototype;
+            const names = Object.getOwnPropertyNames(proto);
+            console.log("ESP-EMU complete WasmEmulator API:", names);
+            for (const name of names) {
+              if (/uart|psram|console|input|write|send|load|run|reset|read|memory|ram|peek|dump/i.test(name)) {
+                const fn = proto[name];
+                console.log(name + "(" + fn.length + "): " + String(fn).slice(0, 900));
+              }
+            }
+            if (typeof proto.uart_input !== "function") throw new Error("ESP-EMU UART input API missing");
+          } catch (error) {
+            console.log("Node API introspection unavailable:", error.stack || error);
+          }
+          JS
+
+      - name: Checkout official ESP-EMU v1.0.0 virtual-part SDK
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-emulator
+          ref: v1.0.0
+          path: .cache/esp-emulator-src
+          fetch-depth: 1
+
+      - name: Build the Kode Dot I2C virtual board part
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Compile Kode Dot I2C virtual board to WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$PWD/.cache/cargo-target"
+          cargo test --manifest-path parts/kode_board/Cargo.toml
+          cargo build --release --target wasm32-unknown-unknown --manifest-path parts/kode_board/Cargo.toml
+          mkdir -p dist/esp-emu/parts
+          cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/kode_board.wasm" dist/esp-emu/parts/
+          test -s dist/esp-emu/parts/kode_board.wasm
+
+      - name: Prepare single-page KodeOS web emulator
+        shell: bash
+        run: |
+          mkdir -p dist/firmware
+          cp upstream/build/kodeos-flash.bin dist/firmware/
+          cp web/index.html dist/index.html
+          touch dist/.nojekyll
+
+      - name: Write source manifest
+        shell: bash
+        run: |
+          cat > dist/versions.json <<EOF
+          {
+            "project": "similateur-kd",
+            "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
+            "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
+            "renderer": "official ESP-EMU browser runtime executing pinned KodeOS ESP32-P4 firmware; real KGUI RGB565 framebuffer captured by the native KodeOS screenshot console command over UART0",
+            "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000; simulator-only headless display overlay",
+            "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
+            "esp_emu": "v1.0.0",
+            "display": "410x502 RGB565 framebuffer rendered by real KGUI and exported as BMP16 over UART0; CO5300 MIPI-DSI bypassed",
+            "virtual_parts": "TCA6408A at I2C 0x20 and CST820 at I2C 0x15; GPIO5 SCL, GPIO4 SDA, GPIO6 IRQ, TOP key on GPIO35"
+          }
+          EOF
+          cat dist/versions.json
+
+      - name: Validate single-page web emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("dist/versions.json").read_text())
+          assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
+          assert "ESP-EMU" in manifest["renderer"] and "real KGUI" in manifest["renderer"]
+          for name in ("index.html", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js", "esp-emu/part-worker.js", "esp-emu/vendor/esp_cosim_pb.js", "esp-emu/parts/kode_board.wasm"):
+              path = Path("dist") / name
+              assert path.is_file() and path.stat().st_size > 0, name
+              print(f"OK {path} ({path.stat().st_size} bytes)")
+          html = Path("dist/index.html").read_text()
+          assert 'name="viewport"' in html
+          assert "CosimPump" in html
+          assert "kode_board.wasm" in html
+          assert 'id="screen"' in html
+          assert "time set=" in html
+          assert "uart_input" in html
+          assert 'text.toLowerCase().includes("kgui assets")' in html
+          assert "screenshot dst=console" in html
+          assert "kodeos-flash.bin" in html
+          assert "esp-emu/index.html" not in html
+          PY
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload web emulator
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Publish web emulator
+        id: deployment
+        uses: actions/deploy-pages@v4
+ upstream/sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=n        shell: bash
+        run: |
+          set -euo pipefail
+          archive="esp-emu-1.0.0-wasm.tar.gz"
+          base="https://github.com/espressif/esp-emulator/releases/download/v1.0.0"
+          curl -fsSL "$base/$archive" -o "/tmp/$archive"
+          curl -fsSL "$base/SHA256SUMS" -o /tmp/esp-emu-SHA256SUMS
+          grep "  $archive\$" /tmp/esp-emu-SHA256SUMS > /tmp/esp-emu-checksum
+          (cd /tmp && sha256sum -c esp-emu-checksum)
+          mkdir -p /tmp/esp-emu-release dist/esp-emu
+          tar -xzf "/tmp/$archive" -C /tmp/esp-emu-release
+          www_dir="$(find /tmp/esp-emu-release -type d -name www -print -quit)"
+          test -n "$www_dir"
+          cp -a "$www_dir"/. dist/esp-emu/
+
+      - name: Inspect official ESP-EMU browser hooks for the firmware display bridge
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          terms = ("WasmEmulator", "load_firmware", "psram", "read_memory", "memory_read", "uart0", "run_batch", "cosim_attach", "set_psram")
+          for name in ("index.html", "app.js", "cosim.js", "pkg/esp_emu.js"):
+              path = Path("dist/esp-emu") / name
+              if not path.is_file():
+                  continue
+              source = path.read_text(errors="replace")
+              print(f"\\n===== {name} ({len(source)} chars) =====")
+              for term in terms:
+                  pos = source.find(term)
+                  if pos >= 0:
+                      print(f"--- {term} ---")
+                      print(source[max(0, pos-220):pos+520].replace("\\n", " ")[:800])
+          PY
+
+          node --input-type=module <<'JS'
+          try {
+            const api = await import("./dist/esp-emu/pkg/esp_emu.js");
+            console.log("ESP-EMU exports:", Object.keys(api));
+            const proto = api.WasmEmulator.prototype;
+            const names = Object.getOwnPropertyNames(proto);
+            console.log("ESP-EMU complete WasmEmulator API:", names);
+            for (const name of names) {
+              if (/uart|psram|console|input|write|send|load|run|reset|read|memory|ram|peek|dump/i.test(name)) {
+                const fn = proto[name];
+                console.log(name + "(" + fn.length + "): " + String(fn).slice(0, 900));
+              }
+            }
+            if (typeof proto.uart_input !== "function") throw new Error("ESP-EMU UART input API missing");
+          } catch (error) {
+            console.log("Node API introspection unavailable:", error.stack || error);
+          }
+          JS
+
+      - name: Checkout official ESP-EMU v1.0.0 virtual-part SDK
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-emulator
+          ref: v1.0.0
+          path: .cache/esp-emulator-src
+          fetch-depth: 1
+
+      - name: Build the Kode Dot I2C virtual board part
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Compile Kode Dot I2C virtual board to WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$PWD/.cache/cargo-target"
+          cargo test --manifest-path parts/kode_board/Cargo.toml
+          cargo build --release --target wasm32-unknown-unknown --manifest-path parts/kode_board/Cargo.toml
+          mkdir -p dist/esp-emu/parts
+          cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/kode_board.wasm" dist/esp-emu/parts/
+          test -s dist/esp-emu/parts/kode_board.wasm
+
+      - name: Prepare single-page KodeOS web emulator
+        shell: bash
+        run: |
+          mkdir -p dist/firmware
+          cp upstream/build/kodeos-flash.bin dist/firmware/
+          cp web/index.html dist/index.html
+          touch dist/.nojekyll
+
+      - name: Write source manifest
+        shell: bash
+        run: |
+          cat > dist/versions.json <<EOF
+          {
+            "project": "similateur-kd",
+            "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
+            "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
+            "renderer": "official ESP-EMU browser runtime executing pinned KodeOS ESP32-P4 firmware; real KGUI RGB565 framebuffer captured by the native KodeOS screenshot console command over UART0",
+            "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000; simulator-only headless display overlay",
+            "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
+            "esp_emu": "v1.0.0",
+            "display": "410x502 RGB565 framebuffer rendered by real KGUI and exported as BMP16 over UART0; CO5300 MIPI-DSI bypassed",
+            "virtual_parts": "TCA6408A at I2C 0x20 and CST820 at I2C 0x15; GPIO5 SCL, GPIO4 SDA, GPIO6 IRQ, TOP key on GPIO35"
+          }
+          EOF
+          cat dist/versions.json
+
+      - name: Validate single-page web emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("dist/versions.json").read_text())
+          assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
+          assert "ESP-EMU" in manifest["renderer"] and "real KGUI" in manifest["renderer"]
+          for name in ("index.html", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js", "esp-emu/part-worker.js", "esp-emu/vendor/esp_cosim_pb.js", "esp-emu/parts/kode_board.wasm"):
+              path = Path("dist") / name
+              assert path.is_file() and path.stat().st_size > 0, name
+              print(f"OK {path} ({path.stat().st_size} bytes)")
+          html = Path("dist/index.html").read_text()
+          assert 'name="viewport"' in html
+          assert "CosimPump" in html
+          assert "kode_board.wasm" in html
+          assert 'id="screen"' in html
+          assert "time set=" in html
+          assert "uart_input" in html
+          assert 'text.toLowerCase().includes("kgui assets")' in html
+          assert "screenshot dst=console" in html
+          assert "kodeos-flash.bin" in html
+          assert "esp-emu/index.html" not in html
+          PY
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload web emulator
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Publish web emulator
+        id: deployment
+        uses: actions/deploy-pages@v4
+ upstream/sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_UART=y        shell: bash
+        run: |
+          set -euo pipefail
+          archive="esp-emu-1.0.0-wasm.tar.gz"
+          base="https://github.com/espressif/esp-emulator/releases/download/v1.0.0"
+          curl -fsSL "$base/$archive" -o "/tmp/$archive"
+          curl -fsSL "$base/SHA256SUMS" -o /tmp/esp-emu-SHA256SUMS
+          grep "  $archive\$" /tmp/esp-emu-SHA256SUMS > /tmp/esp-emu-checksum
+          (cd /tmp && sha256sum -c esp-emu-checksum)
+          mkdir -p /tmp/esp-emu-release dist/esp-emu
+          tar -xzf "/tmp/$archive" -C /tmp/esp-emu-release
+          www_dir="$(find /tmp/esp-emu-release -type d -name www -print -quit)"
+          test -n "$www_dir"
+          cp -a "$www_dir"/. dist/esp-emu/
+
+      - name: Inspect official ESP-EMU browser hooks for the firmware display bridge
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          terms = ("WasmEmulator", "load_firmware", "psram", "read_memory", "memory_read", "uart0", "run_batch", "cosim_attach", "set_psram")
+          for name in ("index.html", "app.js", "cosim.js", "pkg/esp_emu.js"):
+              path = Path("dist/esp-emu") / name
+              if not path.is_file():
+                  continue
+              source = path.read_text(errors="replace")
+              print(f"\\n===== {name} ({len(source)} chars) =====")
+              for term in terms:
+                  pos = source.find(term)
+                  if pos >= 0:
+                      print(f"--- {term} ---")
+                      print(source[max(0, pos-220):pos+520].replace("\\n", " ")[:800])
+          PY
+
+          node --input-type=module <<'JS'
+          try {
+            const api = await import("./dist/esp-emu/pkg/esp_emu.js");
+            console.log("ESP-EMU exports:", Object.keys(api));
+            const proto = api.WasmEmulator.prototype;
+            const names = Object.getOwnPropertyNames(proto);
+            console.log("ESP-EMU complete WasmEmulator API:", names);
+            for (const name of names) {
+              if (/uart|psram|console|input|write|send|load|run|reset|read|memory|ram|peek|dump/i.test(name)) {
+                const fn = proto[name];
+                console.log(name + "(" + fn.length + "): " + String(fn).slice(0, 900));
+              }
+            }
+            if (typeof proto.uart_input !== "function") throw new Error("ESP-EMU UART input API missing");
+          } catch (error) {
+            console.log("Node API introspection unavailable:", error.stack || error);
+          }
+          JS
+
+      - name: Checkout official ESP-EMU v1.0.0 virtual-part SDK
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-emulator
+          ref: v1.0.0
+          path: .cache/esp-emulator-src
+          fetch-depth: 1
+
+      - name: Build the Kode Dot I2C virtual board part
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Compile Kode Dot I2C virtual board to WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$PWD/.cache/cargo-target"
+          cargo test --manifest-path parts/kode_board/Cargo.toml
+          cargo build --release --target wasm32-unknown-unknown --manifest-path parts/kode_board/Cargo.toml
+          mkdir -p dist/esp-emu/parts
+          cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/kode_board.wasm" dist/esp-emu/parts/
+          test -s dist/esp-emu/parts/kode_board.wasm
+
+      - name: Prepare single-page KodeOS web emulator
+        shell: bash
+        run: |
+          mkdir -p dist/firmware
+          cp upstream/build/kodeos-flash.bin dist/firmware/
+          cp web/index.html dist/index.html
+          touch dist/.nojekyll
+
+      - name: Write source manifest
+        shell: bash
+        run: |
+          cat > dist/versions.json <<EOF
+          {
+            "project": "similateur-kd",
+            "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
+            "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
+            "renderer": "official ESP-EMU browser runtime executing pinned KodeOS ESP32-P4 firmware; real KGUI RGB565 framebuffer captured by the native KodeOS screenshot console command over UART0",
+            "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000; simulator-only headless display overlay",
+            "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
+            "esp_emu": "v1.0.0",
+            "display": "410x502 RGB565 framebuffer rendered by real KGUI and exported as BMP16 over UART0; CO5300 MIPI-DSI bypassed",
+            "virtual_parts": "TCA6408A at I2C 0x20 and CST820 at I2C 0x15; GPIO5 SCL, GPIO4 SDA, GPIO6 IRQ, TOP key on GPIO35"
+          }
+          EOF
+          cat dist/versions.json
+
+      - name: Validate single-page web emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("dist/versions.json").read_text())
+          assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
+          assert "ESP-EMU" in manifest["renderer"] and "real KGUI" in manifest["renderer"]
+          for name in ("index.html", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js", "esp-emu/part-worker.js", "esp-emu/vendor/esp_cosim_pb.js", "esp-emu/parts/kode_board.wasm"):
+              path = Path("dist") / name
+              assert path.is_file() and path.stat().st_size > 0, name
+              print(f"OK {path} ({path.stat().st_size} bytes)")
+          html = Path("dist/index.html").read_text()
+          assert 'name="viewport"' in html
+          assert "CosimPump" in html
+          assert "kode_board.wasm" in html
+          assert 'id="screen"' in html
+          assert "time set=" in html
+          assert "uart_input" in html
+          assert 'text.toLowerCase().includes("kgui assets")' in html
+          assert "screenshot dst=console" in html
+          assert "kodeos-flash.bin" in html
+          assert "esp-emu/index.html" not in html
+          PY
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload web emulator
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Publish web emulator
+        id: deployment
+        uses: actions/deploy-pages@v4
+ upstream/sdkconfig
+
       - name: Download ESP-EMU v1.0.0 browser runtime
         shell: bash
         run: |
@@ -111,12 +570,15 @@ jobs:
             const api = await import("./dist/esp-emu/pkg/esp_emu.js");
             console.log("ESP-EMU exports:", Object.keys(api));
             const proto = api.WasmEmulator.prototype;
-            for (const name of Object.getOwnPropertyNames(proto)) {
-              if (/uart|psram|console|input|write|send|load|run|reset/i.test(name)) {
+            const names = Object.getOwnPropertyNames(proto);
+            console.log("ESP-EMU complete WasmEmulator API:", names);
+            for (const name of names) {
+              if (/uart|psram|console|input|write|send|load|run|reset|read|memory|ram|peek|dump/i.test(name)) {
                 const fn = proto[name];
-                console.log(name + "(" + fn.length + "): " + String(fn).slice(0, 500));
+                console.log(name + "(" + fn.length + "): " + String(fn).slice(0, 900));
               }
             }
+            if (typeof proto.uart_input !== "function") throw new Error("ESP-EMU UART input API missing");
           } catch (error) {
             console.log("Node API introspection unavailable:", error.stack || error);
           }
