@@ -39,6 +39,19 @@ jobs:
           echo "Actual SDK:   $actual"
           test "$actual" = "$expected"
 
+      - name: Build the actual KodeOS ESP32-P4 firmware
+        uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
+        with:
+          path: upstream
+          esp_idf_version: v6.1
+          target: esp32p4
+          command: |
+            set -euo pipefail
+            idf.py build
+            idf.py merge-bin -o kodeos-flash.bin
+            test -s build/kodeos-flash.bin
+            ls -lh build/kodeos.bin build/kodeos-flash.bin
+
       - name: Install Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
@@ -57,13 +70,31 @@ jobs:
       - name: Compile official KGUI simulator
         run: cmake --build build --parallel 2
 
-      - name: Prepare single-page KGUI web emulator
+      - name: Download ESP-EMU v1.0.0 browser runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="esp-emu-1.0.0-wasm.tar.gz"
+          base="https://github.com/espressif/esp-emulator/releases/download/v1.0.0"
+          curl -fsSL "$base/$archive" -o "/tmp/$archive"
+          curl -fsSL "$base/SHA256SUMS" -o /tmp/esp-emu-SHA256SUMS
+          grep "  $archive\\$" /tmp/esp-emu-SHA256SUMS > /tmp/esp-emu-checksum
+          (cd /tmp && sha256sum -c esp-emu-checksum)
+          mkdir -p /tmp/esp-emu-release dist/esp-emu
+          tar -xzf "/tmp/$archive" -C /tmp/esp-emu-release
+          test -d /tmp/esp-emu-release/www
+          cp -a /tmp/esp-emu-release/www/. dist/esp-emu/
+
+      - name: Prepare single-page KodeOS web emulator
         shell: bash
         run: |
           mkdir -p dist
-          cp build/kgui_sim.html dist/index.html
+          cp build/kgui_sim.html dist/kgui-preview.html
           cp build/kgui_sim.js dist/
           cp build/kgui_sim.wasm dist/
+          mkdir -p dist/firmware
+          cp upstream/build/kodeos-flash.bin dist/firmware/
+          cp web/index.html dist/index.html
           touch dist/.nojekyll
 
       - name: Make KGUI emulator fit mobile browsers
@@ -131,7 +162,9 @@ jobs:
             "project": "similateur-kd",
             "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
             "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
-            "renderer": "upstream KGUI/KUI with LVGL, compiled to WebAssembly"
+            "renderer": "upstream KGUI/KUI with LVGL, compiled to WebAssembly",
+            "firmware": "KodeOS ESP32-P4 merged flash image",
+            "esp_emu": "v1.0.0"
           }
           EOF
           cat dist/versions.json
@@ -147,14 +180,16 @@ jobs:
           manifest = json.loads(Path("dist/versions.json").read_text())
           assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
           assert manifest["renderer"].startswith("upstream KGUI/KUI")
-          for name in ("index.html", "kgui_sim.js", "kgui_sim.wasm", "versions.json"):
+          for name in ("index.html", "kgui-preview.html", "kgui_sim.js", "kgui_sim.wasm", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js"):
               path = Path("dist") / name
               assert path.is_file() and path.stat().st_size > 0, name
               print(f"OK {path} ({path.stat().st_size} bytes)")
           html = Path("dist/index.html").read_text()
           assert 'name="viewport"' in html
           assert "602 / 979" in html
-          assert "kgui_sim.js" in html
+          assert "kgui_sim.js" in Path("dist/kgui-preview.html").read_text()
+          assert "WasmEmulator" in html
+          assert "kodeos-flash.bin" in html
           PY
 
       - name: Configure GitHub Pages
