@@ -1,0 +1,66 @@
+name: Build native KGUI host simulator
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ports/qpc-posix/**"
+      - "patches/native_qpc.py"
+      - ".github/workflows/build-native.yml"
+      - "docs/native-host-simulator.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-host
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout simulator project
+        uses: actions/checkout@v4
+
+      - name: Checkout official KodeOS sources and pinned SDK
+        uses: actions/checkout@v4
+        with:
+          repository: kodediy/KodeOS
+          ref: develop
+          path: upstream
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Verify SDK pin
+        shell: bash
+        run: |
+          expected="1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
+          actual="$(git -C upstream/sdk rev-parse HEAD)"
+          echo "Expected SDK: $expected"
+          echo "Actual SDK:   $actual"
+          test "$actual" = "$expected"
+
+      - name: Install native SDL2 dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential cmake pkg-config libsdl2-dev
+
+      - name: Select official QP/C POSIX host port
+        run: python3 patches/native_qpc.py upstream/sdk "$GITHUB_WORKSPACE"
+
+      - name: Configure native KGUI simulator
+        run: |
+          cmake -S upstream/components/kgui/sim -B build-native \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Compile official KGUI simulator for Linux
+        run: cmake --build build-native --parallel 2
+
+      - name: Upload native simulator executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: kgui-native-linux
+          path: build-native/kgui_sim
+          if-no-files-found: error
