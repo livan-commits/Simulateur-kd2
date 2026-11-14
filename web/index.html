@@ -258,13 +258,14 @@
         log("[horloge] le firmware signale une horloge non réglée");
         return;
       }
-      if (text.toLowerCase().includes("kgui assets") && !firstAssetsSeen) {
+      if (text.toLowerCase().includes("sdmmc_card_init failed") && !firstAssetsSeen) {
         firstAssetsSeen = true;
         timeSyncReady = true;
         log(text);
         syncTime();
         if (timeTimer) clearInterval(timeTimer);
         timeTimer = setInterval(syncTime, 30000);
+        log("[console] prête après initialisation des services · synchronisation UTC activée");
         log("[framebuffer] Lecture directe de la PSRAM activée via ESP-EMU read_memory()");
         return;
       }
