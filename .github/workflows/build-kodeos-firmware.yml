@@ -106,6 +106,8 @@ jobs:
           set -uo pipefail
           emulator="$(cat /tmp/esp-emu-path)"
           logfile="$RUNNER_TEMP/esp-emu-boot.log"
+          now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          inject_payload="$(printf 'time set=%s\nscreenshot dst=console\n' "$now_utc")"
           set +e
           "$emulator" \
             --chip esp32p4 \
@@ -114,7 +116,9 @@ jobs:
             --psram-size 32M \
             --i2c-dev 0:0x20 \
             --i2c-dev 0:0x15,fill=0,reg=0xa7=0xb7 \
-            --timeout 15s 2>&1 | tee "$logfile"
+            --inject-on "kgui assets" \
+            --inject "$inject_payload" \
+            --timeout 30s 2>&1 | tee "$logfile"
           status="${PIPESTATUS[0]}"
           set -e
           echo "ESP-EMU exit code: $status"
