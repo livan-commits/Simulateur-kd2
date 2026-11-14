@@ -57,7 +57,7 @@ khal_dirs = sorted((sdk / "components/khal").glob("*/include"))
 for include_dir in khal_dirs:
     if include_dir.is_dir():
         relative = os.path.relpath(include_dir, consumer_cmake.parent)
-        new = new[:-1] + f" {${{CMAKE_CURRENT_LIST_DIR}}}/{relative})"
+        new = new[:-1] + " ${CMAKE_CURRENT_LIST_DIR}/" + relative + ")"
 
 if cmake.count(old) != 1:
     raise SystemExit(
