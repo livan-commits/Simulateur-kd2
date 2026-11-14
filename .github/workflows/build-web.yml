@@ -167,7 +167,7 @@ jobs:
             "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
             "esp_emu": "v1.0.0",
             "display": "410x502 RGB565 framebuffer rendered by real KGUI and exported as BMP16 over UART0; CO5300 MIPI-DSI bypassed",
-            "virtual_parts": "TCA6408A at I2C 0x20 and CST820 at I2C 0x15; GPIO5 SCL, GPIO4 SDA, GPIO6 IRQ"
+            "virtual_parts": "TCA6408A at I2C 0x20 and CST820 at I2C 0x15; GPIO5 SCL, GPIO4 SDA, GPIO6 IRQ, TOP key on GPIO35"
           }
           EOF
           cat dist/versions.json
