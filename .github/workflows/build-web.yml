@@ -73,6 +73,10 @@ jobs:
           archive="esp-emu-${version}-wasm.tar.gz"
           url="https://github.com/espressif/esp-emulator/releases/download/v${version}/${archive}"
           curl --fail --location --retry 3 "$url" --output "$RUNNER_TEMP/$archive"
+          expected_sha256="1b55d715c614207d3a441ad3c834eca216891f85c907b0ac0b1d7d9746294873"
+          actual_sha256="$(sha256sum "$RUNNER_TEMP/$archive" | cut -d' ' -f1)"
+          echo "ESP-EMU v${version} SHA-256: $actual_sha256"
+          test "$actual_sha256" = "$expected_sha256"
           mkdir -p "$RUNNER_TEMP/esp-emu-release" dist/esp32
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/esp-emu-release"
           www_dir="$(find "$RUNNER_TEMP/esp-emu-release" -type d -name www -print -quit)"
@@ -129,6 +133,23 @@ jobs:
           </body>
           </html>
           HTML
+
+      - name: Write source and emulator manifest
+        shell: bash
+        run: |
+          kodeos_commit="$(git -C upstream rev-parse HEAD)"
+          sdk_commit="$(git -C upstream/sdk rev-parse HEAD)"
+          cat > dist/versions.json <<EOF
+          {
+            "project": "similateur-kd",
+            "kodeos_source_commit": "$kodeos_commit",
+            "kodeos_sdk_commit": "$sdk_commit",
+            "expected_kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
+            "esp_emu_version": "1.0.0",
+            "esp_emu_wasm_sha256": "$expected_sha256"
+          }
+          EOF
+          cat dist/versions.json
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
