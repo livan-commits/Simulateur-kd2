@@ -180,6 +180,7 @@ jobs:
           retention-days: 30
 
       - name: Publish firmware build artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kodeos-esp32p4-firmware
