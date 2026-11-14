@@ -89,8 +89,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --user pyelftools
-          python3 patches/export_framebuffer_symbols.py upstream/build/kodeos.elf upstream/build/framebuffer-symbols.json
+          python3 -m venv /tmp/elf-tools
+          /tmp/elf-tools/bin/pip install pyelftools
+          /tmp/elf-tools/bin/python patches/export_framebuffer_symbols.py upstream/build/kodeos.elf upstream/build/framebuffer-symbols.json
           test -s upstream/build/framebuffer-symbols.json
 
       - name: Download ESP-EMU v1.0.0 browser runtime
