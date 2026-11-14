@@ -2,7 +2,7 @@ name: Test Kode Dot virtual board part
 
 on:
   push:
-    branches: [web-framebuffer-bridge]
+    branches: [web-framebuffer-bridge, web-psram-bridge-final]
     paths:
       - "parts/kode_board/**"
       - ".github/workflows/test-kode-board.yml"
