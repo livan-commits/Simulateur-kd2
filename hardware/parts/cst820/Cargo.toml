@@ -1,0 +1,16 @@
+[package]
+name = "kode-dot-cst820"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+esp-part = { path = "../../../esp-emulator/esp-part" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
