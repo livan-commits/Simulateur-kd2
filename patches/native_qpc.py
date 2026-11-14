@@ -36,6 +36,24 @@ for name in ("qp_port.h", "qp_config.h", "qf_port.c", "safe_std.h"):
 # The upstream KGUI standalone target compiles screen sources directly.
 consumer_cmake = sdk.parent / "components/kgui/sim/CMakeLists.txt"
 cmake = consumer_cmake.read_text()
+# The official simulator CMake target lists only the screen files. The
+# firmware component also compiles KGUI core, fonts, and glyph assets; include
+# those same upstream source directories in this standalone host target.
+source_anchor = 'file(GLOB KGUI_SCREENS ${CMAKE_CURRENT_LIST_DIR}/../screens/*.c)\n'
+source_addition = (
+    'file(GLOB KGUI_CORE ${CMAKE_CURRENT_LIST_DIR}/../*.c '
+    '${CMAKE_CURRENT_LIST_DIR}/../fonts/*.c '
+    '${CMAKE_CURRENT_LIST_DIR}/../glyphs/*.c)\n'
+)
+if cmake.count(source_anchor) != 1:
+    raise SystemExit("KGUI source patch: expected exactly one screen glob")
+if "file(GLOB KGUI_CORE" not in cmake:
+    cmake = cmake.replace(source_anchor, source_anchor + source_addition, 1)
+old_sources = 'SOURCES ${CMAKE_CURRENT_LIST_DIR}/kgui_sim.c ${KGUI_SCREENS}'
+new_sources = 'SOURCES ${CMAKE_CURRENT_LIST_DIR}/kgui_sim.c ${KGUI_CORE} ${KGUI_SCREENS}'
+if cmake.count(old_sources) != 1:
+    raise SystemExit("KGUI source patch: expected exactly one simulator source list")
+cmake = cmake.replace(old_sources, new_sources, 1)
 old = "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens)"
 new = (
     "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens "
