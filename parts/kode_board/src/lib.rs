@@ -118,6 +118,7 @@ impl Device for KodeBoard {
             "button:left" => Some(2),
             "button:down" => Some(3),
             "button:right" => Some(4),
+            "button:up" => Some(5),
             _ => None,
         };
         if let Some(bit) = bit {
@@ -156,7 +157,7 @@ impl Device for KodeBoard {
                 .set("touch", self.touch_pressed)
                 .set("x", self.touch_x)
                 .set("y", self.touch_y)
-                .set("buttons", format!("0x{:02X}", self.tca_input & 0x1F))
+                .set("buttons", format!("0x{:02X}", self.tca_input & 0x3F))
                 .set("panel_power", (self.tca_output & (1 << 7)) != 0),
         )
     }
