@@ -2,64 +2,326 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#10151f">
-  <title>Similateur Kode Dot — KodeOS ESP32-P4</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10151b">
+  <title>Simulateur KodeOS Web</title>
   <style>
-    :root { color-scheme: dark; font-family: system-ui, sans-serif; background:#10151f; color:#edf3fc; }
+    :root { color-scheme: dark; font-family: system-ui,-apple-system,"Segoe UI",sans-serif; background:#10151b; color:#e8edf2; }
     * { box-sizing:border-box; }
-    body { margin:0; padding:14px; }
-    main { width:min(100%,1100px); margin:0 auto; }
-    h1 { font-size:clamp(1.35rem,5vw,2rem); margin:0 0 5px; }
-    h2 { font-size:1.05rem; margin:0 0 10px; }
-    p { color:#bdc9da; line-height:1.5; }
-    .sub { margin:0 0 14px; font-size:.9rem; }
-    .panel { background:#192333; border:1px solid #34445a; border-radius:13px; padding:14px; margin:12px 0; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    a.download { display:inline-block; padding:10px 14px; border-radius:9px; background:#a9d5ff; color:#10151f; font-weight:700; text-decoration:none; }
-    .tag { display:inline-block; border:1px solid #53657e; border-radius:99px; padding:3px 9px; font-size:.75rem; color:#c5d3e5; }
-    .notice { border-left:3px solid #e5b96b; padding-left:11px; font-size:.88rem; }
-    iframe { display:block; width:100%; height: min(1050px, 90vh); min-height:760px; border:0; border-radius:10px; background:#0b1018; }
-    details { margin:12px 0; }
-    summary { cursor:pointer; font-weight:650; padding:8px 0; }
-    a { color:#a9d5ff; }
-    @media(max-width:600px) { body { padding:8px; } .panel { padding:10px; } iframe { min-height:850px; height:92vh; } }
+    body { margin:0; min-height:100vh; background:radial-gradient(ellipse at top,#1d2a35 0,#10151b 58%); }
+    header { padding:18px 16px 12px; max-width:1080px; margin:auto; }
+    h1 { margin:0; font-size:1.25rem; font-weight:700; letter-spacing:.01em; }
+    header p { margin:6px 0 0; color:#aab7c4; font-size:.9rem; }
+    main { max-width:1080px; margin:auto; padding:8px 14px 28px; display:grid; grid-template-columns:minmax(250px,410px) minmax(260px,1fr); gap:18px; align-items:start; }
+    .panel { border:1px solid #33414d; border-radius:16px; background:#151e27; padding:14px; box-shadow:0 12px 36px #0004; min-width:0; }
+    .screen-wrap { width:min(100%,410px); margin:auto; border:8px solid #080b0e; border-radius:24px; overflow:hidden; background:#000; box-shadow:0 8px 28px #0008; }
+    canvas { display:block; width:100%; height:auto; aspect-ratio:410/502; background:#000; touch-action:manipulation; image-rendering:auto; }
+    .screen-caption { display:flex; justify-content:space-between; gap:8px; margin:10px 2px 0; color:#aab7c4; font-size:.78rem; }
+    .controls { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+    button { border:1px solid #465968; border-radius:10px; padding:10px 12px; color:#f4f7fa; background:#263746; font:inherit; font-weight:600; cursor:pointer; touch-action:manipulation; }
+    button:active { background:#3b566b; transform:translateY(1px); }
+    button:disabled { opacity:.45; cursor:wait; }
+    .primary { background:#176a85; border-color:#2588a6; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .status { display:flex; align-items:center; gap:8px; font-size:.9rem; color:#c5d0da; margin:8px 0 14px; }
+    .dot { width:9px; height:9px; border-radius:50%; background:#7b8791; flex:none; }
+    .dot.ok { background:#42c98b; box-shadow:0 0 10px #42c98b88; }
+    .dot.warn { background:#e6b34b; }
+    .meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:10px 0 14px; }
+    .meta div { padding:9px 10px; border-radius:10px; background:#0f171f; border:1px solid #2b3945; }
+    .meta small { display:block; color:#93a3b1; font-size:.72rem; }
+    .meta strong { display:block; margin-top:3px; font-size:.86rem; font-weight:600; overflow-wrap:anywhere; }
+    h2 { margin:0 0 10px; font-size:.98rem; }
+    pre { margin:0; padding:10px; height:220px; overflow:auto; border-radius:10px; background:#080d12; border:1px solid #2b3945; color:#c9d6df; font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .hint { color:#9eacb8; font-size:.8rem; line-height:1.45; margin:12px 2px 0; }
+    .download { color:#8dd8f2; text-decoration:none; font-size:.85rem; }
+    .download:hover { text-decoration:underline; }
+    .progress { height:5px; border-radius:9px; background:#263541; overflow:hidden; margin:8px 0 14px; }
+    .progress span { display:block; height:100%; width:0; background:#39a6c7; transition:width .15s; }
+    @media (max-width:720px) {
+      main { grid-template-columns:1fr; max-width:480px; }
+      .panel { padding:12px; }
+      header { padding-left:14px; padding-right:14px; }
+    }
   </style>
 </head>
 <body>
-<main>
-  <h1>Similateur Kode Dot</h1>
-  <p class="sub">KodeOS réel · ESP32-P4 · émulation dans le navigateur · sources officielles épinglées</p>
+  <header>
+    <h1>Simulateur KodeOS Web</h1>
+    <p>Firmware KodeOS réel sur ESP32-P4 émulé · rendu KGUI RGB565 · commandes tactiles virtuelles</p>
+  </header>
 
-  <section class="panel">
-    <div class="row" style="justify-content:space-between">
-      <h2>Firmware KodeOS à charger</h2>
-      <span class="tag">ESP-EMU v1.0.0</span>
-    </div>
-    <p>Télécharge l’image flash construite depuis KodeOS, puis charge-la dans l’émulateur ci-dessous. Dans ESP-EMU, sélectionne <b>ESP32-P4</b>, dépose le fichier sur la zone Firmware (ou touche cette zone pour le choisir), puis appuie sur <b>Run</b>. Les messages de démarrage apparaissent dans le terminal série de l’émulateur.</p>
-    <div class="row">
-      <a class="download" href="./firmware/kodeos-flash.bin" download="kodeos-flash.bin">Télécharger le firmware KodeOS</a>
-      <span class="tag">P4 · image flash fusionnée</span>
-    </div>
-  </section>
+  <main>
+    <section class="panel" aria-label="Écran Kode Dot">
+      <div class="screen-wrap">
+        <canvas id="screen" width="410" height="502" aria-label="Écran KodeOS 410 par 502"></canvas>
+      </div>
+      <div class="screen-caption">
+        <span>410 × 502 · RGB565</span>
+        <span id="frame-status">En attente du premier rendu</span>
+      </div>
+      <div class="controls" aria-label="Boutons physiques">
+        <button data-input="button:top">TOP</button>
+        <button data-input="button:up">↑</button>
+        <button data-input="button:bot">BOT</button>
+        <button data-input="button:left">←</button>
+        <button data-input="button:down">↓</button>
+        <button data-input="button:right">→</button>
+      </div>
+      <p class="hint">Touchez directement l’écran pour envoyer une vraie coordonnée tactile au pilote CST820 virtuel. Les boutons sont transmis au TCA6408A virtuel.</p>
+    </section>
 
-  <section class="panel">
-    <h2>Émulateur ESP32-P4 — moteur officiel ESP-EMU</h2>
-    <iframe src="./esp-emu/index.html" title="Émulateur ESP32-P4 ESP-EMU"></iframe>
-  </section>
+    <section class="panel" aria-label="Contrôle de l'émulateur">
+      <div class="actions">
+        <button id="start" class="primary">Démarrer KodeOS</button>
+        <button id="sync" disabled>Synchroniser l’heure</button>
+      </div>
+      <div class="status"><span id="status-dot" class="dot"></span><span id="status">Initialisation en attente</span></div>
+      <div class="progress"><span id="progress"></span></div>
+      <div class="meta">
+        <div><small>Processeur</small><strong>ESP32-P4</strong></div>
+        <div><small>Système</small><strong>KodeOS 0.1.1</strong></div>
+        <div><small>Affichage</small><strong>Framebuffer KGUI réel</strong></div>
+        <div><small>Entrées</small><strong>TCA6408A + CST820</strong></div>
+      </div>
+      <h2>Journal UART0 / KodeOS</h2>
+      <pre id="console" aria-live="polite"></pre>
+      <p class="hint">Le firmware officiel est chargé depuis le dépôt. L’horloge système reçoit l’heure UTC du navigateur via la commande native <code>time set=</code>.</p>
+      <p><a class="download" href="./firmware/kodeos-flash.bin" download="kodeos-flash.bin">Télécharger le firmware KodeOS</a></p>
+    </section>
+  </main>
 
-  <section class="panel">
-    <h2>État matériel connu</h2>
-    <p class="notice">ESP-EMU exécute le firmware du CPU ESP32-P4. La mémoire PSRAM du Dot est de 32 Mo ; le profil P4 documenté par ESP-EMU est de 16 Mo par défaut et ce réglage navigateur reste à confirmer. Le contrôleur AMOLED CO5300 en MIPI-DSI, le tactile CST820, l’expandeur de boutons TCA6408A, les capteurs, l’audio et la puce ESP32-C5 ne sont pas encore tous modélisés. Le terminal série permet d’identifier les blocages au démarrage. L’écran KGUI ne sera présenté comme celui du firmware qu’une fois le pont d’affichage réel raccordé.</p>
-  </section>
+  <script type="module">
+    import init, { WasmEmulator } from "./esp-emu/pkg/esp_emu.js";
+    import { CosimPump } from "./esp-emu/cosim.js";
 
-  <details class="panel">
-    <summary>Aperçu graphique KGUI officiel (test séparé)</summary>
-    <p>Cet aperçu compile le moteur KGUI/KUI/LVGL amont en WebAssembly. Il reste indépendant du firmware ESP32-P4 chargé dans ESP-EMU.</p>
-    <iframe src="./kgui-preview.html" title="Aperçu graphique KGUI officiel"></iframe>
-  </details>
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("screen");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const consoleBox = $("console");
+    let emu = null;
+    let pump = null;
+    let boardWorker = null;
+    let running = false;
+    let uartSend = null;
+    let shotActive = false;
+    let shotParts = [];
+    let shotTimer = null;
+    let timeTimer = null;
+    let timeSyncReady = false;
+    let firstAssetsSeen = false;
 
-  <p class="sub">Sources : <a href="https://github.com/kodediy/KodeOS">KodeOS</a> · <a href="https://github.com/espressif/esp-emulator">ESP-EMU</a> · <a href="https://github.com/livan-commits/similateur-kd">Dépôt du projet</a></p>
-</main>
+    function setStatus(message, kind = "") {
+      $("status").textContent = message;
+      $("status-dot").className = "dot" + (kind ? " " + kind : "");
+    }
+
+    function log(line) {
+      if (!line) return;
+      consoleBox.textContent += line + "\n";
+      if (consoleBox.textContent.length > 22000) {
+        consoleBox.textContent = consoleBox.textContent.slice(-16000);
+      }
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    async function fetchFirmware(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Firmware HTTP " + response.status);
+      const total = Number(response.headers.get("Content-Length") || 0);
+      if (!response.body) {
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        $("progress").style.width = "100%";
+        return bytes;
+      }
+      const reader = response.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.length;
+        if (total) $("progress").style.width = Math.round(loaded * 100 / total) + "%";
+      }
+      const bytes = new Uint8Array(loaded);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.length;
+      }
+      $("progress").style.width = "100%";
+      return bytes;
+    }
+
+    function renderBmp16(base64) {
+      const raw = atob(base64.replace(/\s/g, ""));
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      const view = new DataView(bytes.buffer);
+      const offset = view.getUint32(10, true);
+      const width = view.getInt32(18, true);
+      const signedHeight = view.getInt32(22, true);
+      const height = Math.abs(signedHeight);
+      const bpp = view.getUint16(28, true);
+      if (width !== 410 || height !== 502 || bpp !== 16) {
+        throw new Error("Framebuffer BMP inattendu: " + width + "x" + height + " / " + bpp + " bpp");
+      }
+      const compression = view.getUint32(30, true);
+      const redMask = compression === 3 ? view.getUint32(54, true) : 0xF800;
+      const greenMask = compression === 3 ? view.getUint32(58, true) : 0x07E0;
+      const blueMask = compression === 3 ? view.getUint32(62, true) : 0x001F;
+      const channel = (pixel, mask) => {
+        let shift = 0;
+        while (shift < 16 && ((mask >>> shift) & 1) === 0) shift++;
+        const max = mask >>> shift;
+        return max ? Math.round(((pixel & mask) >>> shift) * 255 / max) : 0;
+      };
+      const stride = Math.ceil(width * 2 / 4) * 4;
+      const image = ctx.createImageData(width, height);
+      for (let y = 0; y < height; y++) {
+        const sourceY = signedHeight > 0 ? height - 1 - y : y;
+        const row = offset + sourceY * stride;
+        for (let x = 0; x < width; x++) {
+          const pixel = view.getUint16(row + x * 2, true);
+          const dest = (y * width + x) * 4;
+          image.data[dest] = channel(pixel, redMask);
+          image.data[dest + 1] = channel(pixel, greenMask);
+          image.data[dest + 2] = channel(pixel, blueMask);
+          image.data[dest + 3] = 255;
+        }
+      }
+      ctx.putImageData(image, 0, 0);
+      $("frame-status").textContent = "Image KGUI reçue";
+      $("sync").disabled = false;
+    }
+
+    function sendConsole(command) {
+      if (!uartSend) {
+        log("[bridge] Entrée UART0 indisponible: méthode ESP-EMU non identifiée");
+        return false;
+      }
+      uartSend(command.endsWith("\n") ? command : command + "\n");
+      return true;
+    }
+
+    function syncTime() {
+      if (!running || !timeSyncReady) return;
+      const isoUtc = new Date().toISOString().slice(0, 19) + "Z";
+      sendConsole('time set="' + isoUtc + '"');
+    }
+
+    function requestScreenshot() {
+      if (!running || shotActive || !timeSyncReady) return;
+      shotActive = true;
+      shotParts = [];
+      if (!sendConsole("screenshot dst=console")) {
+        shotActive = false;
+      }
+    }
+
+    function processLine(line) {
+      const text = line.trim();
+      if (!text) return;
+      if (text.includes("|shot w=410 h=502 fmt=bmp16")) {
+        shotActive = true;
+        shotParts = [];
+        log("[framebuffer] Capture 410×502 RGB565 reçue");
+        return;
+      }
+      if (text.includes("|d=") && shotActive) {
+        shotParts.push(text.slice(text.indexOf("|d=") + 3).trim());
+        return;
+      }
+      if (shotActive && (text === ">ok" || text.endsWith(">ok"))) {
+        try {
+          renderBmp16(shotParts.join(""));
+          shotActive = false;
+          shotParts = [];
+          if (shotTimer) clearTimeout(shotTimer);
+          shotTimer = setTimeout(requestScreenshot, 1500);
+        } catch (error) {
+          log("[framebuffer] " + error.message);
+          shotActive = false;
+          shotParts = [];
+          shotTimer = setTimeout(requestScreenshot, 2000);
+        }
+        return;
+      }
+      if (text.includes("kgui assets") && !firstAssetsSeen) {
+        firstAssetsSeen = true;
+        timeSyncReady = true;
+        log(text);
+        syncTime();
+        if (timeTimer) clearInterval(timeTimer);
+        timeTimer = setInterval(syncTime, 30000);
+        shotTimer = setTimeout(requestScreenshot, 5000);
+        return;
+      }
+      if (text.includes("|d=") && !shotActive) return;
+      log(text);
+    }
+
+    function onOutput(output) {
+      const text = typeof output === "string" ? output : String(output);
+      for (const line of text.split(/\r?\n/)) processLine(line);
+    }
+
+    function boardInput(kind) {
+      if (boardWorker) boardWorker.postMessage({ type: "input", kind });
+    }
+
+    async function start() {
+      if (running) return;
+      $("start").disabled = true;
+      setStatus("Chargement du runtime ESP-EMU…", "warn");
+      try {
+        await init();
+        emu = new WasmEmulator("esp32p4");
+        const firmware = await fetchFirmware("./firmware/kodeos-flash.bin");
+        log("[emu] Firmware fusionné chargé (" + firmware.length.toLocaleString("fr-FR") + " octets)");
+        emu.load_default_rom();
+        await emu.load_firmware(firmware);
+
+        boardWorker = new Worker("./esp-emu/part-worker.js", { type: "module" });
+        const channel = new MessageChannel();
+        pump = new CosimPump(emu, {
+          kodeboard: { port: channel.port1, worker: boardWorker }
+        });
+        boardWorker.postMessage({
+          type: "start",
+          port: channel.port2,
+          module: "./parts/kode_board.wasm",
+          config: { pins: { SCL: 5, SDA: 4 } }
+        }, [channel.port2]);
+        await pump.waitForDevice(5000);
+        setStatus("ESP32-P4 démarré · attente du démarrage KodeOS…", "ok");
+        pump.start(onOutput, (error) => {
+          setStatus("Erreur ESP-EMU", "warn");
+          log("[emu error] " + error);
+        });
+        running = true;
+        $("sync").disabled = false;
+      } catch (error) {
+        setStatus("Échec du démarrage", "warn");
+        log("[erreur] " + (error?.stack || error));
+        $("start").disabled = false;
+      }
+    }
+
+    $("start").addEventListener("click", start);
+    $("sync").addEventListener("click", syncTime);
+    canvas.addEventListener("click", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.max(0, Math.min(409, Math.floor((event.clientX - rect.left) * 410 / rect.width)));
+      const y = Math.max(0, Math.min(501, Math.floor((event.clientY - rect.top) * 502 / rect.height)));
+      boardInput("tap:" + x + "," + y);
+    });
+    document.querySelectorAll("[data-input]").forEach(button => {
+      button.addEventListener("pointerdown", () => boardInput(button.dataset.input));
+    });
+
+    start();
+  </script>
 </body>
 </html>
