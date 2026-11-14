@@ -152,31 +152,44 @@ jobs:
           </head>
           <body>
             <h1>Laboratoire matériel Kode Dot DVT</h1>
-            <p>Prototype expérimental ESP32-P4 avec le modèle virtuel TCA6408A officiel du profil matériel Kode Dot. Sélectionne une image flash fusionnée ESP32-P4 au format .bin. Le fichier reste dans ton navigateur et n'est pas téléversé.</p>
+            <p>Prototype ESP32-P4 avec deux composants virtuels raccordés au même bus I²C officiel : l'expandeur TCA6408A (0x20) et le contrôleur tactile CST820 (0x15). Sélectionne une image flash fusionnée ESP32-P4 au format .bin. Le fichier reste dans ton navigateur et n'est pas téléversé.</p>
             <section>
               <label for="firmware">Image flash fusionnée (.bin)</label><br><br>
               <input id="firmware" type="file" accept=".bin,application/octet-stream">
               <button id="run">Démarrer l'émulation</button>
-              <p><small>Le firmware doit être construit pour ESP32-P4. Le modèle TCA6408A est raccordé à SDA=GPIO4, SCL=GPIO5, INT=GPIO6, adresse I2C 0x20.</small></p>
+              <p><small>Brochage issu du SDK KodeOS épinglé : SDA=GPIO4, SCL=GPIO5, INT expandeur=GPIO6, reset écran/tactile actif bas=GPIO7. Les deux modèles doivent s'enregistrer avant le démarrage du processeur.</small></p>
             </section>
             <section>
-              <strong>Entrées physiques virtuelles</strong>
-              <p>Ces commandes agissent sur les entrées P0 à P6 de l'expandeur.</p>
+              <strong>Entrées physiques virtuelles — TCA6408A</strong>
               <div class="controls">
-                <button data-input="bottom_press" disabled>Maintenir bouton bas</button>
-                <button data-input="bottom_release" disabled>Relâcher bouton bas</button>
-                <button data-input="pad_up_press" disabled>Pavé haut</button>
-                <button data-input="pad_up_release" disabled>Relâcher haut</button>
-                <button data-input="pad_left_press" disabled>Pavé gauche</button>
-                <button data-input="pad_left_release" disabled>Relâcher gauche</button>
-                <button data-input="pad_down_press" disabled>Pavé bas</button>
-                <button data-input="pad_down_release" disabled>Relâcher bas</button>
-                <button data-input="pad_right_press" disabled>Pavé droit</button>
-                <button data-input="pad_right_release" disabled>Relâcher droite</button>
-                <button data-input="imu_irq_assert" disabled>Interruption IMU</button>
-                <button data-input="imu_irq_release" disabled>Effacer IMU</button>
-                <button data-input="touch_irq_assert" disabled>Interruption tactile</button>
-                <button data-input="touch_irq_release" disabled>Effacer tactile</button>
+                <button data-part="tca" data-input="bottom_press" disabled>Maintenir bouton bas</button>
+                <button data-part="tca" data-input="bottom_release" disabled>Relâcher bouton bas</button>
+                <button data-part="tca" data-input="pad_up_press" disabled>Pavé haut</button>
+                <button data-part="tca" data-input="pad_up_release" disabled>Relâcher haut</button>
+                <button data-part="tca" data-input="pad_left_press" disabled>Pavé gauche</button>
+                <button data-part="tca" data-input="pad_left_release" disabled>Relâcher gauche</button>
+                <button data-part="tca" data-input="pad_down_press" disabled>Pavé bas</button>
+                <button data-part="tca" data-input="pad_down_release" disabled>Relâcher bas</button>
+                <button data-part="tca" data-input="pad_right_press" disabled>Pavé droit</button>
+                <button data-part="tca" data-input="pad_right_release" disabled>Relâcher droite</button>
+                <button data-part="tca" data-input="imu_irq_assert" disabled>Interruption IMU</button>
+                <button data-part="tca" data-input="imu_irq_release" disabled>Effacer IMU</button>
+              </div>
+            </section>
+            <section>
+              <strong>Écran tactile virtuel — CST820</strong>
+              <p>Les interactions tactiles mettent à jour la trame I²C du CST820 et déclenchent une impulsion de laboratoire sur P6 du TCA6408A. Cette impulsion de 20 ms sert à tester la chaîne logicielle ; elle ne prétend pas reproduire exactement la temporisation électrique du contrôleur réel.</p>
+              <div class="controls">
+                <button data-part="touch" data-input="touch_down:80,215" disabled>Toucher la cible A (80, 215)</button>
+                <button data-part="touch" data-input="touch_down:335,285" disabled>Toucher la cible B (335, 285)</button>
+                <button data-part="touch" data-input="touch_move:205,250" disabled>Déplacer le doigt</button>
+                <button data-part="touch" data-input="touch_up" disabled>Lever le doigt</button>
+                <button data-part="touch" data-input="swipe_up" disabled>Geste haut</button>
+                <button data-part="touch" data-input="swipe_down" disabled>Geste bas</button>
+                <button data-part="touch" data-input="swipe_left" disabled>Geste gauche</button>
+                <button data-part="touch" data-input="swipe_right" disabled>Geste droite</button>
+                <button data-part="touch" data-input="double_tap" disabled>Double tap</button>
+                <button data-part="touch" data-input="long_press" disabled>Appui long</button>
               </div>
             </section>
             <section>
@@ -191,11 +204,43 @@ jobs:
               const runButton = document.getElementById("run");
               const firmwareInput = document.getElementById("firmware");
               const controls = [...document.querySelectorAll("[data-input]")];
-              let worker = null;
+              let tcaWorker = null;
+              let cstWorker = null;
+              let touchIrqTimer = null;
+              const readyParts = new Set();
+              let partFailure = null;
               const log = (line) => {
-                logView.textContent += (logView.textContent ? "\\n" : "") + String(line);
+                logView.textContent += (logView.textContent ? "\n" : "") + String(line);
                 logView.scrollTop = logView.scrollHeight;
               };
+
+              function watchPart(worker, name) {
+                worker.onmessage = (event) => {
+                  const message = event.data;
+                  if (message?.type === "loaded") log(name + ": module chargé (" + message.name + ")");
+                  if (message?.type === "ready") {
+                    readyParts.add(name);
+                    log(name + ": accepté par ESP32-P4");
+                  }
+                  if (message?.type === "error") {
+                    partFailure = new Error(name + ": " + message.text);
+                    log("Erreur " + name + ": " + message.text);
+                  }
+                  if (message?.type === "state" && message.values) {
+                    log(name + " état: " + JSON.stringify(message.values));
+                  }
+                };
+              }
+
+              function pulseTouchIrq() {
+                if (!tcaWorker) return;
+                if (touchIrqTimer !== null) clearTimeout(touchIrqTimer);
+                tcaWorker.postMessage({ type: "input", kind: "touch_irq_assert" });
+                touchIrqTimer = setTimeout(() => {
+                  tcaWorker?.postMessage({ type: "input", kind: "touch_irq_release" });
+                  touchIrqTimer = null;
+                }, 20);
+              }
 
               runButton.addEventListener("click", async () => {
                 const file = firmwareInput.files?.[0];
@@ -207,36 +252,60 @@ jobs:
                   emu.load_default_rom();
                   emu.load_firmware(new Uint8Array(await file.arrayBuffer()));
 
-                  worker = new Worker("./part-worker.js", { type: "module" });
-                  worker.onmessage = (event) => {
-                    if (event.data?.type === "error") log("Part: " + event.data.text);
-                    if (event.data?.type === "loaded") log("Part chargée : " + event.data.name);
-                  };
-                  const channel = new MessageChannel();
+                  tcaWorker = new Worker("./part-worker.js", { type: "module" });
+                  cstWorker = new Worker("./part-worker.js", { type: "module" });
+                  watchPart(tcaWorker, "TCA6408A");
+                  watchPart(cstWorker, "CST820");
+
+                  const tcaChannel = new MessageChannel();
+                  const cstChannel = new MessageChannel();
                   const pump = new CosimPump(emu, {
-                    tca6408a: { port: channel.port1, worker }
+                    tca6408a: { port: tcaChannel.port1, worker: tcaWorker },
+                    cst820: { port: cstChannel.port1, worker: cstWorker }
                   });
-                  worker.postMessage({
+
+                  tcaWorker.postMessage({
                     type: "start",
-                    port: channel.port2,
+                    port: tcaChannel.port2,
                     module: "./parts/kode_dot_tca6408a.wasm",
                     config: { pins: { SCL: 5, SDA: 4, INT: 6 } }
-                  }, [channel.port2]);
+                  }, [tcaChannel.port2]);
 
-                  if (!(await pump.waitForDevice())) {
-                    throw new Error("Le TCA6408A virtuel ne s'est pas attaché dans le délai prévu.");
+                  cstWorker.postMessage({
+                    type: "start",
+                    port: cstChannel.port2,
+                    module: "./parts/kode_dot_cst820.wasm",
+                    config: { pins: { SCL: 5, SDA: 4, RESET: 7 } }
+                  }, [cstChannel.port2]);
+
+                  const attached = await pump.pumpUntil(
+                    () => readyParts.size === 2 || partFailure !== null,
+                    8000
+                  );
+                  if (partFailure) throw partFailure;
+                  if (!attached || readyParts.size !== 2) {
+                    throw new Error("Les deux composants matériels ne se sont pas attachés dans les 8 secondes.");
                   }
+
                   pump.start((line) => log(line), (error) => log("Erreur émulateur : " + error));
                   controls.forEach((button) => {
                     button.disabled = false;
                     button.addEventListener("click", () => {
-                      worker?.postMessage({ type: "input", kind: button.dataset.input });
+                      const kind = button.dataset.input;
+                      if (button.dataset.part === "touch") {
+                        cstWorker?.postMessage({ type: "input", kind });
+                        pulseTouchIrq();
+                      } else {
+                        tcaWorker?.postMessage({ type: "input", kind });
+                      }
                     });
                   });
-                  log("ESP32-P4 démarré avec TCA6408A virtuel à 0x20.");
+                  log("ESP32-P4 démarré avec TCA6408A (0x20) et CST820 (0x15) sur GPIO4/5.");
                 } catch (error) {
                   log("Échec du démarrage : " + (error?.stack || error));
                   runButton.disabled = false;
+                  tcaWorker?.terminate();
+                  cstWorker?.terminate();
                 }
               });
             </script>
