@@ -106,6 +106,11 @@ jobs:
           set -uo pipefail
           emulator="$(cat /tmp/esp-emu-path)"
           logfile="$RUNNER_TEMP/esp-emu-boot.log"
+          now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          time_payload="$(printf '%s\n' "time set=$now_utc"; printf 'X')"
+          time_payload="${time_payload%X}"
+          shot_payload="$(printf '%s\n' "screenshot dst=console"; printf 'X')"
+          shot_payload="${shot_payload%X}"
           set +e
           "$emulator" \
             --chip esp32p4 \
@@ -114,7 +119,11 @@ jobs:
             --psram-size 32M \
             --i2c-dev 0:0x20 \
             --i2c-dev 0:0x15,fill=0,reg=0xa7=0xb7 \
-            --timeout 15s 2>&1 | tee "$logfile"
+            --inject-on "kgui assets" \
+            --inject "$time_payload" \
+            --inject-on "sdmmc_card_init failed" \
+            --inject "$shot_payload" \
+            --timeout 30s 2>&1 | tee "$logfile"
           status="${PIPESTATUS[0]}"
           set -e
           echo "ESP-EMU exit code: $status"
@@ -133,7 +142,7 @@ jobs:
             echo "::error::The KodeOS SDK boot banner was not observed on the ESP-EMU UART."
             exit 1
           fi
-          echo "Confirmed: KodeOS reached kode_banner_print(); full 15-second UART trace captured with virtual I2C ACK devices."
+          echo "Confirmed: KodeOS reached kode_banner_print(); full 30-second UART trace captured with virtual I2C ACK devices."
           if ! grep -F "|shot w=410 h=502 fmt=bmp16" "$logfile"; then
             echo "::error::The real KGUI framebuffer screenshot was not returned by the KodeOS console."
             exit 1
