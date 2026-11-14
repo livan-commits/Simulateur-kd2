@@ -37,7 +37,7 @@ jobs:
           actions-cache-folder: emsdk-cache
 
       - name: Patch the upstream simulator for browser event loop and SDL2
-        run: git -C upstream/sdk apply "$GITHUB_WORKSPACE/patches/emscripten.patch"
+        run: python3 "$GITHUB_WORKSPACE/patches/emscripten.py" upstream/sdk
 
       - name: Configure WebAssembly build
         run: |
