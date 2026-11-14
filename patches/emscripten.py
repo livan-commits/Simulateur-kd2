@@ -43,6 +43,20 @@ cmake = replace_once(
 )
 cmake_path.write_text(cmake)
 
+
+# The upstream KGUI simulator compiles screen sources directly rather than
+# registering the KGUI ESP-IDF component. Add the component root so headers
+# such as kgui_edge.h resolve in this standalone CMake build.
+consumer_cmake_path = sdk.parent / "components/kgui/sim/CMakeLists.txt"
+consumer_cmake = consumer_cmake_path.read_text()
+consumer_cmake = replace_once(
+    consumer_cmake,
+    "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens)",
+    "INCLUDES ${CMAKE_CURRENT_LIST_DIR}/../screens ${CMAKE_CURRENT_LIST_DIR}/..)",
+    "KGUI component header include path",
+)
+consumer_cmake_path.write_text(consumer_cmake)
+
 main = main_path.read_text()
 main = replace_once(
     main,
