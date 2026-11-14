@@ -55,7 +55,7 @@ jobs:
             idf.py build
             (
               cd build
-              python -m esptool --chip esp32p4 merge-bin -o kodeos-flash.bin -f raw @flash_args
+              python -m esptool --chip esp32p4 merge-bin -o kodeos-flash.bin -f raw @flash_args 0x1800000 storage.bin
             )
             {
               echo "KodeOS source: $(git rev-parse HEAD)"
@@ -83,8 +83,9 @@ jobs:
           curl -fsSL "$base/SHA256SUMS" -o /tmp/esp-emu-SHA256SUMS
           grep "  $archive\$" /tmp/esp-emu-SHA256SUMS > /tmp/esp-emu-checksum
           (cd /tmp && sha256sum -c esp-emu-checksum)
-          tar -xzf "/tmp/$archive" -C /tmp
-          emulator="$(find /tmp -type f -name esp-emu -perm -u+x -print -quit)"
+          mkdir -p /tmp/esp-emu-release
+          tar -xzf "/tmp/$archive" -C /tmp/esp-emu-release
+          emulator="$(find /tmp/esp-emu-release -type f -name esp-emu -perm -u+x -print -quit)"
           test -n "$emulator"
           echo "$emulator" > /tmp/esp-emu-path
           "$emulator" --help > /tmp/esp-emu-help.txt
