@@ -103,7 +103,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          page = Path("dist/index.html")
+          page = Path("dist/kgui-preview.html")
           html = page.read_text()
           html = html.replace("<html lang=en-us>", '<html lang="fr">', 1)
           html = html.replace("<title>Emscripten-Generated Code</title>",
@@ -185,9 +185,10 @@ jobs:
               assert path.is_file() and path.stat().st_size > 0, name
               print(f"OK {path} ({path.stat().st_size} bytes)")
           html = Path("dist/index.html").read_text()
+          assert 'name="viewport"' in Path("dist/index.html").read_text()
           assert 'name="viewport"' in html
           assert "602 / 979" in html
-          assert "kgui_sim.js" in Path("dist/kgui-preview.html").read_text()
+          assert "kgui_sim.js" in html
           assert "WasmEmulator" in html
           assert "kodeos-flash.bin" in html
           PY
