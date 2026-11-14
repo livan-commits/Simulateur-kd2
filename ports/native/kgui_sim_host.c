@@ -22,6 +22,29 @@ lv_subject_t *kgui_subject_tp_text = NULL;
 static char empty_text[SUBJECT_TEXT_LEN], empty_prev[SUBJECT_TEXT_LEN];
 static char loading_text[SUBJECT_TEXT_LEN], loading_prev[SUBJECT_TEXT_LEN];
 static char tp_text[SUBJECT_TEXT_LEN], tp_prev[SUBJECT_TEXT_LEN];
+static int s_clock_minute = -1;
+static int s_clock_day = -1;
+
+static void browser_clock_tick(lv_timer_t *timer)
+{
+    LV_UNUSED(timer);
+    time_t now = time(NULL);
+    struct tm local;
+    if (localtime_r(&now, &local) == NULL) return;
+
+    if (s_clock_minute != local.tm_min) {
+        kgui_screen_face_time(local.tm_hour, local.tm_min, false, false);
+        s_clock_minute = local.tm_min;
+    }
+    if (s_clock_day != local.tm_yday) {
+        char date[32];
+        if (strftime(date, sizeof(date), "%a %e %b", &local) > 0U) {
+            lv_obj_t *label = lv_obj_find_by_name(kgui_screen_face, "face_date");
+            if (label != NULL) lv_label_set_text(label, date);
+        }
+        s_clock_day = local.tm_yday;
+    }
+}
 
 static lv_obj_t *get_face(void) { return kgui_screen_face; }
 static lv_obj_t *get_launcher(void) { return kgui_screen_launcher; }
