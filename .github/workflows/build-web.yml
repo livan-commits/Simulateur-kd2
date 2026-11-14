@@ -82,8 +82,9 @@ jobs:
           (cd /tmp && sha256sum -c esp-emu-checksum)
           mkdir -p /tmp/esp-emu-release dist/esp-emu
           tar -xzf "/tmp/$archive" -C /tmp/esp-emu-release
-          test -d /tmp/esp-emu-release/www
-          cp -a /tmp/esp-emu-release/www/. dist/esp-emu/
+          www_dir="$(find /tmp/esp-emu-release -type d -name www -print -quit)"
+          test -n "$www_dir"
+          cp -a "$www_dir"/. dist/esp-emu/
 
       - name: Prepare single-page KodeOS web emulator
         shell: bash
