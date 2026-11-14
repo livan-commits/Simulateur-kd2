@@ -1,0 +1,76 @@
+name: Build and publish KGUI Web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this project
+        uses: actions/checkout@v4
+
+      - name: Checkout official KodeOS sources
+        uses: actions/checkout@v4
+        with:
+          repository: kodediy/KodeOS
+          ref: develop
+          path: upstream
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+          actions-cache-folder: emsdk-cache
+
+      - name: Patch the upstream simulator for browser event loop and SDL2
+        run: git -C upstream/sdk apply "$GITHUB_WORKSPACE/patches/emscripten.patch"
+
+      - name: Configure WebAssembly build
+        run: |
+          emcmake cmake -S upstream/components/kgui/sim -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXECUTABLE_SUFFIX=.html
+
+      - name: Compile official KGUI simulator
+        run: cmake --build build --parallel 2
+
+      - name: Prepare GitHub Pages site
+        run: |
+          mkdir -p dist
+          cp build/kgui_sim.html dist/index.html
+          cp build/kgui_sim.js dist/
+          cp build/kgui_sim.wasm dist/
+          touch dist/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload browser simulator
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Publish simulator
+        id: deployment
+        uses: actions/deploy-pages@v4
