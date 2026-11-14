@@ -71,6 +71,13 @@ jobs:
             test -s build/kodeos-flash.bin
             ls -lh build/kodeos.bin build/storage.bin build/kodeos-flash.bin
 
+      - name: Export direct framebuffer memory symbols
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pyelftools
+          python3 patches/export_framebuffer_symbols.py upstream/build/kodeos.elf dist/firmware/framebuffer.json
+
       - name: Download ESP-EMU v1.0.0 browser runtime
         shell: bash
         run: |
@@ -162,11 +169,11 @@ jobs:
             "project": "similateur-kd",
             "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
             "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
-            "renderer": "official ESP-EMU browser runtime executing pinned KodeOS ESP32-P4 firmware; real KGUI RGB565 PSRAM framebuffer captured by the native screenshot console",
+            "renderer": "official ESP-EMU browser runtime executing pinned KodeOS ESP32-P4 firmware; direct reads of the real KGUI RGB565 PSRAM framebuffer",
             "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000; simulator-only headless display overlay",
             "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
             "esp_emu": "v1.0.0",
-            "display": "410x502 RGB565 framebuffer rendered by real KGUI; virtual 60 Hz scanout; CO5300 MIPI-DSI bypassed",
+            "display": "410x502 RGB565 framebuffer rendered by real KGUI; direct ESP-EMU memory reads; virtual 60 Hz scanout; CO5300 MIPI-DSI bypassed",
             "virtual_parts": "TCA6408A at I2C 0x20 and CST820 at I2C 0x15; GPIO5 SCL, GPIO4 SDA, GPIO6 IRQ"
           }
           EOF
@@ -183,7 +190,7 @@ jobs:
           manifest = json.loads(Path("dist/versions.json").read_text())
           assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
           assert "ESP-EMU" in manifest["renderer"] and "real KGUI" in manifest["renderer"]
-          for name in ("index.html", "versions.json", "firmware/kodeos-flash.bin", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js", "esp-emu/part-worker.js", "esp-emu/vendor/esp_cosim_pb.js", "esp-emu/parts/kode_board.wasm"):
+          for name in ("index.html", "versions.json", "firmware/kodeos-flash.bin", "firmware/framebuffer.json", "esp-emu/index.html", "esp-emu/app.js", "esp-emu/worker.js", "esp-emu/pkg/esp_emu.js", "esp-emu/pkg/esp_emu_bg.wasm", "esp-emu/cosim.js", "esp-emu/part-worker.js", "esp-emu/vendor/esp_cosim_pb.js", "esp-emu/parts/kode_board.wasm"):
               path = Path("dist") / name
               assert path.is_file() and path.stat().st_size > 0, name
               print(f"OK {path} ({path.stat().st_size} bytes)")
