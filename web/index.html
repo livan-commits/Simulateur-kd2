@@ -6,148 +6,60 @@
   <meta name="theme-color" content="#10151f">
   <title>Similateur Kode Dot — KodeOS ESP32-P4</title>
   <style>
-    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10151f; color: #edf3fc; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; padding: 16px; }
-    main { width: min(100%, 920px); margin: 0 auto; }
-    h1 { font-size: clamp(1.35rem, 5vw, 2rem); margin: 0 0 6px; }
-    h2 { font-size: 1.05rem; margin: 0 0 12px; }
-    p { line-height: 1.5; color: #b9c6d8; }
-    .sub { margin: 0 0 18px; font-size: .92rem; }
-    .panel { background: #192333; border: 1px solid #34445a; border-radius: 14px; padding: 16px; margin: 14px 0; }
-    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-    button { border: 0; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 650; color: #10151f; background: #a9d5ff; }
-    button.secondary { color: #e7eef8; background: #34445a; }
-    button:disabled { opacity: .45; }
-    #status { font-size: .9rem; color: #b9c6d8; }
-    #log { min-height: 230px; max-height: 48vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #080d14; border: 1px solid #263448; border-radius: 10px; padding: 12px; color: #d4e7ff; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
-    .notice { border-left: 3px solid #e5b96b; padding-left: 12px; font-size: .9rem; }
-    details { margin: 16px 0; }
-    summary { cursor: pointer; font-weight: 650; padding: 8px 0; }
-    iframe { display: block; width: 100%; height: min(80vh, 760px); border: 0; border-radius: 12px; background: #000; }
-    .tag { display: inline-block; border: 1px solid #53657e; border-radius: 99px; padding: 3px 9px; font-size: .75rem; color: #c5d3e5; }
-    a { color: #a9d5ff; }
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background:#10151f; color:#edf3fc; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:14px; }
+    main { width:min(100%,1100px); margin:0 auto; }
+    h1 { font-size:clamp(1.35rem,5vw,2rem); margin:0 0 5px; }
+    h2 { font-size:1.05rem; margin:0 0 10px; }
+    p { color:#bdc9da; line-height:1.5; }
+    .sub { margin:0 0 14px; font-size:.9rem; }
+    .panel { background:#192333; border:1px solid #34445a; border-radius:13px; padding:14px; margin:12px 0; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    a.download { display:inline-block; padding:10px 14px; border-radius:9px; background:#a9d5ff; color:#10151f; font-weight:700; text-decoration:none; }
+    .tag { display:inline-block; border:1px solid #53657e; border-radius:99px; padding:3px 9px; font-size:.75rem; color:#c5d3e5; }
+    .notice { border-left:3px solid #e5b96b; padding-left:11px; font-size:.88rem; }
+    iframe { display:block; width:100%; height: min(1050px, 90vh); min-height:760px; border:0; border-radius:10px; background:#0b1018; }
+    details { margin:12px 0; }
+    summary { cursor:pointer; font-weight:650; padding:8px 0; }
+    a { color:#a9d5ff; }
+    @media(max-width:600px) { body { padding:8px; } .panel { padding:10px; } iframe { min-height:850px; height:92vh; } }
   </style>
 </head>
 <body>
 <main>
   <h1>Similateur Kode Dot</h1>
-  <p class="sub">Firmware KodeOS réel · ESP32-P4 · exécution locale dans le navigateur</p>
+  <p class="sub">KodeOS réel · ESP32-P4 · émulation dans le navigateur · sources officielles épinglées</p>
 
   <section class="panel">
     <div class="row" style="justify-content:space-between">
-      <h2>1. Démarrer KodeOS</h2>
-      <span class="tag">ESP-EMU v1.0.0 · WASM</span>
+      <h2>Firmware KodeOS à charger</h2>
+      <span class="tag">ESP-EMU v1.0.0</span>
     </div>
-    <p>Cette page charge l'image flash officielle compilée depuis les sources KodeOS épinglées, puis l'exécute dans l'émulateur ESP32-P4. Le firmware reste dans cet onglet.</p>
+    <p>Télécharge l’image flash construite depuis KodeOS, puis charge-la dans l’émulateur ci-dessous. Dans ESP-EMU, sélectionne <b>ESP32-P4</b>, dépose le fichier sur la zone Firmware (ou touche cette zone pour le choisir), puis appuie sur <b>Run</b>. Les messages de démarrage apparaissent dans le terminal série de l’émulateur.</p>
     <div class="row">
-      <button id="start">Démarrer le firmware</button>
-      <button id="stop" class="secondary" disabled>Arrêter</button>
-      <span id="status" role="status" aria-live="polite">En attente du démarrage</span>
+      <a class="download" href="./firmware/kodeos-flash.bin" download="kodeos-flash.bin">Télécharger le firmware KodeOS</a>
+      <span class="tag">P4 · image flash fusionnée</span>
     </div>
   </section>
 
   <section class="panel">
-    <h2>2. Console série du firmware</h2>
-    <pre id="log" aria-live="polite">Les messages UART du vrai firmware KodeOS apparaîtront ici après le démarrage.</pre>
-    <div class="row">
-      <button id="clear" class="secondary">Effacer les logs</button>
-      <span id="runtime" class="tag">ESP32-P4 · profil mémoire Web par défaut</span>
-    </div>
+    <h2>Émulateur ESP32-P4 — moteur officiel ESP-EMU</h2>
+    <iframe src="./esp-emu/index.html" title="Émulateur ESP32-P4 ESP-EMU"></iframe>
   </section>
 
   <section class="panel">
-    <h2>État de l'émulation</h2>
-    <p class="notice">Le CPU ESP32-P4 et le firmware sont exécutés par ESP-EMU. La taille PSRAM de 32 Mo utilisée dans le test natif doit encore être explicitement raccordée au runtime navigateur. Le contrôleur d'écran CO5300 en MIPI-DSI n'est pas encore relié à un framebuffer KGUI dans cette version. Les périphériques Kode Dot (tactile, expandeur de boutons, capteurs, audio, microSD et coprocesseur C5) ne sont pas tous raccordés : les journaux série permettront d'identifier les premiers points de blocage.</p>
-    <p>Le panneau graphique ci-dessous est un aperçu KGUI amont indépendant. Il n'est pas présenté comme l'écran du firmware émulé tant que le pont d'affichage n'est pas réalisé.</p>
+    <h2>État matériel connu</h2>
+    <p class="notice">ESP-EMU exécute le firmware du CPU ESP32-P4. Le contrôleur AMOLED CO5300 en MIPI-DSI, le tactile CST820, l’expandeur de boutons TCA6408A, les capteurs, l’audio et la puce ESP32-C5 ne sont pas encore tous modélisés. Le terminal série permet d’identifier les blocages au démarrage. L’écran KGUI ne sera présenté comme celui du firmware qu’une fois le pont d’affichage réel raccordé.</p>
   </section>
 
   <details class="panel">
-    <summary>Afficher l'aperçu graphique KGUI (moteur hôte séparé)</summary>
-    <iframe src="./kgui-preview.html" title="Aperçu séparé du simulateur graphique KGUI"></iframe>
+    <summary>Aperçu graphique KGUI officiel (test séparé)</summary>
+    <p>Cet aperçu compile le moteur KGUI/KUI/LVGL amont en WebAssembly. Il reste indépendant du firmware ESP32-P4 chargé dans ESP-EMU.</p>
+    <iframe src="./kgui-preview.html" title="Aperçu graphique KGUI officiel"></iframe>
   </details>
 
   <p class="sub">Sources : <a href="https://github.com/kodediy/KodeOS">KodeOS</a> · <a href="https://github.com/espressif/esp-emulator">ESP-EMU</a> · <a href="https://github.com/livan-commits/similateur-kd">Dépôt du projet</a></p>
 </main>
-<script type="module">
-  import init, { WasmEmulator } from "./esp-emu/pkg/esp_emu.js";
-  import { CosimPump } from "./esp-emu/cosim.js";
-
-  const startButton = document.querySelector("#start");
-  const stopButton = document.querySelector("#stop");
-  const statusNode = document.querySelector("#status");
-  const logNode = document.querySelector("#log");
-  let emulator = null;
-  let pump = null;
-  let initialized = false;
-
-  function appendLog(value) {
-    const line = String(value ?? "");
-    logNode.textContent += line.endsWith("\n") ? line : line + "\n";
-    logNode.scrollTop = logNode.scrollHeight;
-  }
-
-  function setStatus(value) {
-    statusNode.textContent = value;
-  }
-
-  startButton.addEventListener("click", async () => {
-    startButton.disabled = true;
-    setStatus("Chargement du moteur ESP-EMU…");
-    appendLog("[web] Initialisation de l'émulateur ESP32-P4");
-    try {
-      if (!initialized) {
-        await init();
-        initialized = true;
-      }
-      setStatus("Chargement de l'image flash KodeOS…");
-      const response = await fetch("./firmware/kodeos-flash.bin", { cache: "no-store" });
-      if (!response.ok) throw new Error("Image flash introuvable : HTTP " + response.status);
-      const firmware = new Uint8Array(await response.arrayBuffer());
-      appendLog("[web] Image flash chargée : " + firmware.byteLength.toLocaleString("fr-FR") + " octets");
-
-      emulator = new WasmEmulator("esp32p4");
-      emulator.load_default_rom();
-      emulator.load_firmware(firmware);
-      pump = new CosimPump(emulator, {});
-      pump.start(
-        (output) => appendLog(output),
-        (error) => {
-          appendLog("[ESP-EMU] Erreur : " + error);
-          setStatus("Arrêt sur erreur — consulter la console");
-          startButton.disabled = false;
-          stopButton.disabled = true;
-          pump = null;
-        }
-      );
-      setStatus("Firmware en cours d'exécution");
-      stopButton.disabled = false;
-      appendLog("[web] Exécution démarrée. Les lignes suivantes proviennent de l'UART du firmware.");
-    } catch (error) {
-      appendLog("[web] Échec : " + (error?.stack || error));
-      setStatus("Échec du démarrage");
-      startButton.disabled = false;
-      stopButton.disabled = true;
-      pump = null;
-    }
-  });
-
-  stopButton.addEventListener("click", () => {
-    try { pump?.stop(); } catch (error) { appendLog("[web] Arrêt : " + error); }
-    pump = null;
-    stopButton.disabled = true;
-    startButton.disabled = false;
-    setStatus("Arrêté");
-    appendLog("[web] Exécution arrêtée.");
-  });
-
-  document.querySelector("#clear").addEventListener("click", () => {
-    logNode.textContent = "";
-  });
-
-  window.addEventListener("beforeunload", () => {
-    try { pump?.stop(); } catch {}
-  });
-</script>
 </body>
 </html>
