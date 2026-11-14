@@ -30,14 +30,6 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Checkout ESP-EMU source for Virtual Parts ABI
-        uses: actions/checkout@v4
-        with:
-          repository: espressif/esp-emulator
-          ref: v1.0.0
-          path: esp-emulator
-          fetch-depth: 1
-
       - name: Verify pinned SDK revision
         shell: bash
         run: |
@@ -65,25 +57,26 @@ jobs:
       - name: Compile official KGUI simulator
         run: cmake --build build --parallel 2
 
-      - name: Prepare KGUI browser simulator
+      - name: Prepare single-page KGUI web emulator
+        shell: bash
         run: |
-          mkdir -p dist/kgui
-          cp build/kgui_sim.html dist/kgui/index.html
-          cp build/kgui_sim.js dist/kgui/
-          cp build/kgui_sim.wasm dist/kgui/
+          mkdir -p dist
+          cp build/kgui_sim.html dist/index.html
+          cp build/kgui_sim.js dist/
+          cp build/kgui_sim.wasm dist/
           touch dist/.nojekyll
 
-      - name: Make KGUI screen fit mobile browsers
+      - name: Make KGUI emulator fit mobile browsers
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          page = Path("dist/kgui/index.html")
+          page = Path("dist/index.html")
           html = page.read_text()
           html = html.replace("<html lang=en-us>", '<html lang="fr">', 1)
           html = html.replace("<title>Emscripten-Generated Code</title>",
-                              "<title>Similateur KD — KGUI</title>", 1)
+                              "<title>Similateur Kode Dot — KGUI</title>", 1)
           if 'name="viewport"' not in html:
               mobile = """<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
           <meta name="theme-color" content="#10151f">
@@ -109,7 +102,7 @@ jobs:
               const canvas = document.querySelector("canvas.emscripten");
               if (!canvas) return;
               canvas.tabIndex = 0;
-              canvas.setAttribute("aria-label", "Simulateur graphique Kode Dot. Flèches : pavé directionnel ; Entrée : bouton TOP ; Échap : bouton BOT.");
+              canvas.setAttribute("aria-label", "Simulateur Kode Dot. Flèches : pavé directionnel ; Entrée : bouton TOP ; Échap : bouton BOT.");
               canvas.addEventListener("pointerdown", () => canvas.focus({ preventScroll: true }));
               window.addEventListener("keydown", (event) => {
                 if (document.activeElement !== canvas) return;
@@ -130,322 +123,20 @@ jobs:
           print(f"Mobile KGUI viewport configured: {page.stat().st_size} bytes")
           PY
 
-      - name: Fetch official Espressif ESP-EMU browser release
+      - name: Write source manifest
         shell: bash
         run: |
-          set -euo pipefail
-          version="1.0.0"
-          archive="esp-emu-${version}-wasm.tar.gz"
-          url="https://github.com/espressif/esp-emulator/releases/download/v${version}/${archive}"
-          curl --fail --location --retry 3 "$url" --output "$RUNNER_TEMP/$archive"
-          expected_sha256="1b55d715c614207d3a441ad3c834eca216891f85c907b0ac0b1d7d9746294873"
-          actual_sha256="$(sha256sum "$RUNNER_TEMP/$archive" | cut -d' ' -f1)"
-          echo "ESP-EMU v${version} SHA-256: $actual_sha256"
-          test "$actual_sha256" = "$expected_sha256"
-          mkdir -p "$RUNNER_TEMP/esp-emu-release" dist/esp32
-          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/esp-emu-release"
-          www_dir="$(find "$RUNNER_TEMP/esp-emu-release" -type d -name www -print -quit)"
-          test -n "$www_dir"
-          test -f "$www_dir/index.html"
-          cp -a "$www_dir/." dist/esp32/
-          curl --fail --location --retry 3 \
-            "https://raw.githubusercontent.com/espressif/esp-emulator/v${version}/LICENSE" \
-            --output dist/esp32/LICENSE-ESP-EMULATOR
-          echo "Bundled Espressif ESP-EMU v${version} browser runtime."
-          du -sh dist/esp32
-
-      - name: Install Rust and build Kode Dot TCA6408A Virtual Part
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Test and compile TCA6408A Virtual Part
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo test --manifest-path hardware/parts/tca6408a/Cargo.toml
-          cargo build --release --target wasm32-unknown-unknown \
-            --manifest-path hardware/parts/tca6408a/Cargo.toml
-          mkdir -p dist/esp32/parts
-          cp hardware/parts/tca6408a/target/wasm32-unknown-unknown/release/kode_dot_tca6408a.wasm \
-            dist/esp32/parts/
-          ls -lh dist/esp32/parts/kode_dot_tca6408a.wasm
-
-      - name: Test and compile Kode Dot CST820 Virtual Part
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo test --manifest-path hardware/parts/cst820/Cargo.toml
-          cargo build --release --target wasm32-unknown-unknown \
-            --manifest-path hardware/parts/cst820/Cargo.toml
-          cp hardware/parts/cst820/target/wasm32-unknown-unknown/release/kode_dot_cst820.wasm \
-            dist/esp32/parts/
-          ls -lh dist/esp32/parts/kode_dot_cst820.wasm
-
-      - name: Create Kode Dot hardware test page
-        shell: bash
-        run: |
-          cat > dist/esp32/kode-dot.html <<'HTML'
-          <!doctype html>
-          <html lang="fr">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta name="theme-color" content="#10151f">
-            <title>Laboratoire matériel Kode Dot — Similateur KD</title>
-            <style>
-              :root { color-scheme: dark; font: 16px system-ui; background: #10151f; color: #edf3fc; }
-              body { margin: 0; padding: 20px; max-width: 900px; margin-inline: auto; }
-              h1 { font-size: clamp(1.6rem, 5vw, 2.4rem); }
-              p { color: #b9c6d8; line-height: 1.5; }
-              section { background: #192536; border: 1px solid #35465d; border-radius: 14px; padding: 16px; margin: 16px 0; }
-              button, input { font: inherit; }
-              button { background: #294365; color: white; border: 1px solid #55749b; border-radius: 9px; padding: 10px 13px; margin: 4px; }
-              button:disabled { opacity: .45; }
-              pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0b111b; border-radius: 10px; padding: 12px; min-height: 120px; max-height: 45vh; overflow: auto; }
-              .controls { display: flex; flex-wrap: wrap; gap: 4px; }
-              small { color: #9eacc0; }
-            </style>
-          </head>
-          <body>
-            <h1>Laboratoire matériel Kode Dot DVT</h1>
-            <p>Prototype ESP32-P4 avec deux composants virtuels raccordés au même bus I²C officiel : l'expandeur TCA6408A (0x20) et le contrôleur tactile CST820 (0x15). Sélectionne une image flash fusionnée ESP32-P4 au format .bin. Le fichier reste dans ton navigateur et n'est pas téléversé.</p>
-            <section>
-              <label for="firmware">Image flash fusionnée (.bin)</label><br><br>
-              <input id="firmware" type="file" accept=".bin,application/octet-stream">
-              <button id="run">Démarrer l'émulation</button>
-              <p><small>Brochage issu du SDK KodeOS épinglé : SDA=GPIO4, SCL=GPIO5, INT expandeur=GPIO6, reset écran/tactile actif bas=GPIO7. Les deux modèles doivent s'enregistrer avant le démarrage du processeur.</small></p>
-            </section>
-            <section>
-              <strong>Entrées physiques virtuelles — TCA6408A</strong>
-              <div class="controls">
-                <button data-part="tca" data-input="bottom_press" disabled>Maintenir bouton bas</button>
-                <button data-part="tca" data-input="bottom_release" disabled>Relâcher bouton bas</button>
-                <button data-part="tca" data-input="pad_up_press" disabled>Pavé haut</button>
-                <button data-part="tca" data-input="pad_up_release" disabled>Relâcher haut</button>
-                <button data-part="tca" data-input="pad_left_press" disabled>Pavé gauche</button>
-                <button data-part="tca" data-input="pad_left_release" disabled>Relâcher gauche</button>
-                <button data-part="tca" data-input="pad_down_press" disabled>Pavé bas</button>
-                <button data-part="tca" data-input="pad_down_release" disabled>Relâcher bas</button>
-                <button data-part="tca" data-input="pad_right_press" disabled>Pavé droit</button>
-                <button data-part="tca" data-input="pad_right_release" disabled>Relâcher droite</button>
-                <button data-part="tca" data-input="imu_irq_assert" disabled>Interruption IMU</button>
-                <button data-part="tca" data-input="imu_irq_release" disabled>Effacer IMU</button>
-              </div>
-            </section>
-            <section>
-              <strong>Écran tactile virtuel — CST820</strong>
-              <p>Les interactions tactiles mettent à jour la trame I²C du CST820 et déclenchent une impulsion de laboratoire sur P6 du TCA6408A. Cette impulsion de 20 ms sert à tester la chaîne logicielle ; elle ne prétend pas reproduire exactement la temporisation électrique du contrôleur réel.</p>
-              <div class="controls">
-                <button data-part="touch" data-input="touch_down:80,215" disabled>Toucher la cible A (80, 215)</button>
-                <button data-part="touch" data-input="touch_down:335,285" disabled>Toucher la cible B (335, 285)</button>
-                <button data-part="touch" data-input="touch_move:205,250" disabled>Déplacer le doigt</button>
-                <button data-part="touch" data-input="touch_up" disabled>Lever le doigt</button>
-                <button data-part="touch" data-input="swipe_up" disabled>Geste haut</button>
-                <button data-part="touch" data-input="swipe_down" disabled>Geste bas</button>
-                <button data-part="touch" data-input="swipe_left" disabled>Geste gauche</button>
-                <button data-part="touch" data-input="swipe_right" disabled>Geste droite</button>
-                <button data-part="touch" data-input="double_tap" disabled>Double tap</button>
-                <button data-part="touch" data-input="long_press" disabled>Appui long</button>
-              </div>
-            </section>
-            <section>
-              <strong>Console UART0 / diagnostic</strong>
-              <pre id="log">En attente d'une image flash ESP32-P4…</pre>
-            </section>
-            <script type="module">
-              import init, { WasmEmulator } from "./pkg/esp_emu.js";
-              import { CosimPump } from "./cosim.js";
-
-              const logView = document.getElementById("log");
-              const runButton = document.getElementById("run");
-              const firmwareInput = document.getElementById("firmware");
-              const controls = [...document.querySelectorAll("[data-input]")];
-              let tcaWorker = null;
-              let cstWorker = null;
-              let touchIrqTimer = null;
-              const readyParts = new Set();
-              let partFailure = null;
-              const log = (line) => {
-                logView.textContent += (logView.textContent ? "\n" : "") + String(line);
-                logView.scrollTop = logView.scrollHeight;
-              };
-
-              function watchPart(worker, name) {
-                worker.onmessage = (event) => {
-                  const message = event.data;
-                  if (message?.type === "loaded") log(name + ": module chargé (" + message.name + ")");
-                  if (message?.type === "ready") {
-                    readyParts.add(name);
-                    log(name + ": accepté par ESP32-P4");
-                  }
-                  if (message?.type === "error") {
-                    partFailure = new Error(name + ": " + message.text);
-                    log("Erreur " + name + ": " + message.text);
-                  }
-                  if (message?.type === "state" && message.values) {
-                    log(name + " état: " + JSON.stringify(message.values));
-                  }
-                };
-              }
-
-              function pulseTouchIrq() {
-                if (!tcaWorker) return;
-                if (touchIrqTimer !== null) clearTimeout(touchIrqTimer);
-                tcaWorker.postMessage({ type: "input", kind: "touch_irq_assert" });
-                touchIrqTimer = setTimeout(() => {
-                  tcaWorker?.postMessage({ type: "input", kind: "touch_irq_release" });
-                  touchIrqTimer = null;
-                }, 20);
-              }
-
-              runButton.addEventListener("click", async () => {
-                const file = firmwareInput.files?.[0];
-                if (!file) { log("Choisis d'abord une image .bin."); return; }
-                runButton.disabled = true;
-                // A failed previous attempt must not count stale part-ready events.
-                readyParts.clear();
-                partFailure = null;
-                if (touchIrqTimer !== null) {
-                  clearTimeout(touchIrqTimer);
-                  touchIrqTimer = null;
-                }
-                try {
-                  await init();
-                  const emu = new WasmEmulator("esp32p4");
-                  emu.load_default_rom();
-                  emu.load_firmware(new Uint8Array(await file.arrayBuffer()));
-
-                  tcaWorker = new Worker("./part-worker.js", { type: "module" });
-                  cstWorker = new Worker("./part-worker.js", { type: "module" });
-                  watchPart(tcaWorker, "TCA6408A");
-                  watchPart(cstWorker, "CST820");
-
-                  const tcaChannel = new MessageChannel();
-                  const cstChannel = new MessageChannel();
-                  const pump = new CosimPump(emu, {
-                    tca6408a: { port: tcaChannel.port1, worker: tcaWorker },
-                    cst820: { port: cstChannel.port1, worker: cstWorker }
-                  });
-
-                  tcaWorker.postMessage({
-                    type: "start",
-                    port: tcaChannel.port2,
-                    module: "./parts/kode_dot_tca6408a.wasm",
-                    config: { pins: { SCL: 5, SDA: 4, INT: 6 } }
-                  }, [tcaChannel.port2]);
-
-                  cstWorker.postMessage({
-                    type: "start",
-                    port: cstChannel.port2,
-                    module: "./parts/kode_dot_cst820.wasm",
-                    config: { pins: { SCL: 5, SDA: 4, RESET: 7 } }
-                  }, [cstChannel.port2]);
-
-                  const attached = await pump.pumpUntil(
-                    () => readyParts.size === 2 || partFailure !== null,
-                    8000
-                  );
-                  if (partFailure) throw partFailure;
-                  if (!attached || readyParts.size !== 2) {
-                    throw new Error("Les deux composants matériels ne se sont pas attachés dans les 8 secondes.");
-                  }
-
-                  pump.start((line) => log(line), (error) => log("Erreur émulateur : " + error));
-                  controls.forEach((button) => {
-                    button.disabled = false;
-                    button.addEventListener("click", () => {
-                      const kind = button.dataset.input;
-                      if (button.dataset.part === "touch") {
-                        cstWorker?.postMessage({ type: "input", kind });
-                        pulseTouchIrq();
-                      } else {
-                        tcaWorker?.postMessage({ type: "input", kind });
-                      }
-                    });
-                  });
-                  log("ESP32-P4 démarré avec TCA6408A (0x20) et CST820 (0x15) sur GPIO4/5.");
-                } catch (error) {
-                  log("Échec du démarrage : " + (error?.stack || error));
-                  runButton.disabled = false;
-                  tcaWorker?.terminate();
-                  cstWorker?.terminate();
-                }
-              });
-            </script>
-          </body>
-          </html>
-          HTML
-
-      - name: Create simulator launcher
-        shell: bash
-        run: |
-          cat > dist/index.html <<'HTML'
-          <!doctype html>
-          <html lang="fr">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta name="theme-color" content="#10151f">
-            <title>Similateur KD</title>
-            <style>
-              :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10151f; color: #f3f6fb; }
-              body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
-              main { width: min(760px, 100%); }
-              h1 { font-size: clamp(2rem, 7vw, 3.4rem); margin: 0 0 10px; }
-              p { color: #b7c2d3; line-height: 1.55; }
-              .engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-top: 28px; }
-              a { display: block; padding: 22px; border: 1px solid #344156; border-radius: 16px; color: inherit; text-decoration: none; background: #192333; }
-              a:hover, a:focus { border-color: #8bb8ff; background: #202e42; }
-              strong { display: block; font-size: 1.15rem; margin-bottom: 8px; }
-              small { color: #b7c2d3; line-height: 1.5; }
-              footer { margin-top: 28px; font-size: .85rem; color: #8492a8; }
-            </style>
-          </head>
-          <body>
-            <main>
-              <h1>Similateur KD</h1>
-              <p>Deux moteurs complémentaires, réunis dans le même site. Le simulateur KGUI exécute les écrans graphiques officiels portés en WebAssembly. ESP-EMU exécute des images firmware ESP32 compatibles dans le navigateur.</p>
-              <section class="engines" aria-label="Moteurs de simulation">
-                <a href="./kgui/">
-                  <strong>Simulateur graphique KGUI</strong>
-                  <small>Écrans et rendu LVGL/KUI issus des sources officielles KodeDIY.</small>
-                </a>
-                <a href="./esp32/">
-                  <strong>Émulateur ESP32-P4 et ESP32</strong>
-                  <small>Charger une image flash fusionnée .bin et lancer le processeur émulé avec ESP-EMU d'Espressif.</small>
-                </a>
-                <a href="./esp32/kode-dot.html">
-                  <strong>Laboratoire matériel Kode Dot</strong>
-                  <small>Prototype P4 avec expandeur GPIO TCA6408A virtuel et commandes de boutons.</small>
-                </a>
-              </section>
-              <footer>Projet indépendant. KodeOS/KUI et ESP-EMU restent les projets amont de leurs auteurs respectifs. L'émulation complète du Kode Dot n'est pas encore acquise.</footer>
-            </main>
-          </body>
-          </html>
-          HTML
-
-      - name: Write source and emulator manifest
-        shell: bash
-        run: |
-          kodeos_commit="$(git -C upstream rev-parse HEAD)"
-          sdk_commit="$(git -C upstream/sdk rev-parse HEAD)"
           cat > dist/versions.json <<EOF
           {
             "project": "similateur-kd",
-            "kodeos_source_commit": "$kodeos_commit",
-            "kodeos_sdk_commit": "$sdk_commit",
-            "expected_kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
-            "esp_emu_version": "1.0.0",
-            "kode_dot_tca6408a_part": "0.1.0",
-            "kode_dot_cst820_part": "0.1.0",
-            "esp_emu_wasm_sha256": "1b55d715c614207d3a441ad3c834eca216891f85c907b0ac0b1d7d9746294873"
+            "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
+            "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
+            "renderer": "upstream KGUI/KUI with LVGL, compiled to WebAssembly"
           }
           EOF
           cat dist/versions.json
 
-      - name: Validate complete browser artifact
+      - name: Validate single-page web emulator
         shell: bash
         run: |
           set -euo pipefail
@@ -454,35 +145,22 @@ jobs:
           from pathlib import Path
 
           manifest = json.loads(Path("dist/versions.json").read_text())
-          assert manifest["kodeos_sdk_commit"] == manifest["expected_kodeos_sdk_commit"], manifest
-          assert manifest["esp_emu_version"] == "1.0.0", manifest
-          print("Manifest JSON valide ; SDK épinglé :", manifest["kodeos_sdk_commit"])
+          assert manifest["kodeos_sdk_commit"] == "1841cc8c13d4b2e3e4d7288b40cdac5de207a133"
+          assert manifest["renderer"].startswith("upstream KGUI/KUI")
+          for name in ("index.html", "kgui_sim.js", "kgui_sim.wasm", "versions.json"):
+              path = Path("dist") / name
+              assert path.is_file() and path.stat().st_size > 0, name
+              print(f"OK {path} ({path.stat().st_size} bytes)")
+          html = Path("dist/index.html").read_text()
+          assert 'name="viewport"' in html
+          assert "602 / 979" in html
+          assert "kgui_sim.js" in html
           PY
-          required_files=(
-            dist/index.html
-            dist/versions.json
-            dist/kgui/index.html
-            dist/kgui/kgui_sim.js
-            dist/kgui/kgui_sim.wasm
-            dist/esp32/index.html
-            dist/esp32/pkg/esp_emu.js
-            dist/esp32/pkg/esp_emu_bg.wasm
-            dist/esp32/cosim.js
-            dist/esp32/part-worker.js
-            dist/esp32/vendor/esp_cosim_pb.js
-            dist/esp32/kode-dot.html
-            dist/esp32/parts/kode_dot_tca6408a.wasm
-            dist/esp32/parts/kode_dot_cst820.wasm
-          )
-          for file in "${required_files[@]}"; do
-            test -s "$file" || { echo "Fichier manquant ou vide : $file"; exit 1; }
-            echo "OK $file ($(wc -c < "$file") octets)"
-          done
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload browser simulators
+      - name: Upload web emulator
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -494,6 +172,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Publish simulator
+      - name: Publish web emulator
         id: deployment
         uses: actions/deploy-pages@v4
