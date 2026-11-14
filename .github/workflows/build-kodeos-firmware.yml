@@ -121,7 +121,7 @@ jobs:
           emulator="$(cat /tmp/esp-emu-path)"
           logfile="$RUNNER_TEMP/esp-emu-boot.log"
           now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          time_payload="$(printf '%s\n' "time set=$now_utc"; printf 'X')"
+          time_payload="$(printf '%s\n' "time set=\"$now_utc\""; printf 'X')"
           time_payload="${time_payload%X}"
           shot_payload="$(printf '%s\n' "screenshot dst=console"; printf 'X')"
           shot_payload="${shot_payload%X}"
