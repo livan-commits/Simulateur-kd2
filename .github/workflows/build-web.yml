@@ -47,10 +47,16 @@ jobs:
           target: esp32p4
           command: |
             set -euo pipefail
+            bash tools/build_c5.sh
             idf.py build
-            idf.py merge-bin -o kodeos-flash.bin
+            (
+              cd build
+              python -m esptool --chip esp32p4 merge-bin -o kodeos-flash.bin -f raw @flash_args 0x1800000 storage.bin
+            )
+            test -s build/kodeos.bin
+            test -s build/storage.bin
             test -s build/kodeos-flash.bin
-            ls -lh build/kodeos.bin build/kodeos-flash.bin
+            ls -lh build/kodeos.bin build/storage.bin build/kodeos-flash.bin
 
       - name: Install Emscripten
         uses: mymindstorm/setup-emsdk@v14
@@ -164,7 +170,8 @@ jobs:
             "kodeos_source_commit": "9bcfdb71b763ee7b5c14106358643ea611fc97db",
             "kodeos_sdk_commit": "1841cc8c13d4b2e3e4d7288b40cdac5de207a133",
             "renderer": "upstream KGUI/KUI with LVGL, compiled to WebAssembly",
-            "firmware": "KodeOS ESP32-P4 merged flash image",
+            "firmware": "KodeOS ESP32-P4 merged flash image including storage at 0x1800000",
+            "c5": "KodeOS-pinned ESP32-C5 coprocessor firmware included in storage",
             "esp_emu": "v1.0.0"
           }
           EOF
