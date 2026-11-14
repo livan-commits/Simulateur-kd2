@@ -98,13 +98,13 @@ for component in ("khal", "kdrv"):
         path for path in sorted((sdk / "components" / component).glob("*/include"))
         if path.is_dir()
     )
-include_anchor = "    \${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port)"
+include_anchor = "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port)"
 if consumer_cmake.count(include_anchor) != 1:
     raise SystemExit("KGUI host include path: expected exactly one QP/C port anchor")
 include_paths = "\n".join("    " + str(path) for path in host_include_dirs)
 consumer_cmake = consumer_cmake.replace(
     include_anchor,
-    "    \${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port\n"
+    "${CMAKE_CURRENT_LIST_DIR}/../../../sdk/components/qpc/port\n"
     + include_paths + ")",
     1,
 )
