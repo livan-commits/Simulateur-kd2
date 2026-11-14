@@ -154,6 +154,23 @@ static bool web_headless_buffers_init(void)
         "headless brightness",
     )
 
+    source = after_open(
+        source,
+        "void kdrv_display_link(kdrv_display_link_t *out)",
+        """    if ( NULL == out )
+    {
+        return;
+    }
+    (void)memset(out, 0, sizeof(*out));
+    if ( s_ready )
+    {
+        uint64_t const elapsed_ms = (uint64_t)(khal_time_ms() - s_up_ms);
+        out->frames = (uint32_t)((elapsed_ms * 60ULL) / 1000ULL);
+    }
+    return;""",
+        "headless virtual scanout metrics",
+    )
+
     # Low-power link operations must not tear down the RAM framebuffer.
     source = after_open(
         source,
