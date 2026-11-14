@@ -55,12 +55,13 @@ jobs:
             idf.py build
             (
               cd build
-              python -m esptool --chip esp32p4 merge-bin -o kodeos-flash.bin -f raw @flash_args 0x1800000 storage.bin
+              python -m esptool --chip esp32p4 merge-bin -o kodeos-flash.bin -f raw @flash_args
             )
             {
               echo "KodeOS source: $(git rev-parse HEAD)"
               echo "KodeOS SDK: $(git -C sdk rev-parse HEAD)"
               echo "C5 source: $(git -C sdk/c5 rev-parse HEAD)"
+              echo "C5 stamp: $(cat storage_image/c5_slave.commit)"
               echo "ESP-IDF: v6.1"
               echo "Target: esp32p4"
               echo "Application: build/kodeos.bin"
