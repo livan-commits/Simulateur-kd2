@@ -298,7 +298,9 @@
           module: "./parts/kode_board.wasm",
           config: { pins: { SCL: 5, SDA: 4 } }
         }, [channel.port2]);
-        await pump.waitForDevice(5000);
+        if (!(await pump.waitForDevice(5000))) {
+          throw new Error("La carte virtuelle Kode Dot ne s'est pas attachée au bus I2C en 5 secondes.");
+        }
         setStatus("ESP32-P4 démarré · attente du démarrage KodeOS…", "ok");
         pump.start(onOutput, (error) => {
           setStatus("Erreur ESP-EMU", "warn");
