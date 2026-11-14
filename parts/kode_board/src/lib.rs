@@ -5,6 +5,7 @@ const SDA: &str = "SDA";
 const TCA_ADDR: u32 = 0x20;
 const CST_ADDR: u32 = 0x15;
 const IRQ_PIN: u32 = 6;
+const TOP_PIN: u32 = 35;
 const PRESS_NS: u64 = 60_000_000;
 
 struct KodeBoard {
@@ -24,6 +25,8 @@ struct KodeBoard {
     release_at_ns: Option<u64>,
     irq_high: bool,
     last_irq_high: Option<bool>,
+    top_high: bool,
+    last_top_high: Option<bool>,
 }
 
 impl Default for KodeBoard {
@@ -50,6 +53,8 @@ impl Default for KodeBoard {
             release_at_ns: None,
             irq_high: true,
             last_irq_high: None,
+            top_high: true,
+            last_top_high: None,
         }
     }
 }
@@ -70,6 +75,7 @@ impl Device for KodeBoard {
             Claim { what: Some(claim::What::I2c(tca)) },
             Claim { what: Some(claim::What::I2c(cst)) },
             drives(1u64 << IRQ_PIN),
+            drives(1u64 << TOP_PIN),
         ]
     }
 
@@ -112,13 +118,19 @@ impl Device for KodeBoard {
             return;
         }
 
+        if name == "button:top" {
+            // TOP is the sixth physical key, wired directly to P4 GPIO35.
+            self.top_high = false;
+            self.event_active = true;
+            self.release_at_ns = None;
+            return;
+        }
         let bit = match name {
             "button:bot" => Some(0),
-            "button:top" => Some(1),
+            "button:up" => Some(1),
             "button:left" => Some(2),
             "button:down" => Some(3),
             "button:right" => Some(4),
-            "button:up" => Some(5),
             _ => None,
         };
         if let Some(bit) = bit {
@@ -130,7 +142,9 @@ impl Device for KodeBoard {
     fn poll(&mut self, now_ns: u64) -> Option<EmulatorMessage> {
         if self.event_active && self.release_at_ns.is_none() {
             self.release_at_ns = Some(now_ns.saturating_add(PRESS_NS));
-            self.irq_high = false;
+            if self.touch_pressed || self.tca_input != 0xFF {
+                self.irq_high = false;
+            }
         }
         if let Some(deadline) = self.release_at_ns {
             if now_ns >= deadline {
@@ -140,11 +154,16 @@ impl Device for KodeBoard {
                 self.event_active = false;
                 self.release_at_ns = None;
                 self.irq_high = true;
+                self.top_high = true;
             }
         }
         if self.last_irq_high != Some(self.irq_high) {
             self.last_irq_high = Some(self.irq_high);
             return Some(drive(IRQ_PIN, self.irq_high, now_ns));
+        }
+        if self.last_top_high != Some(self.top_high) {
+            self.last_top_high = Some(self.top_high);
+            return Some(drive(TOP_PIN, self.top_high, now_ns));
         }
         None
     }
