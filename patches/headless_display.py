@@ -304,6 +304,60 @@ static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
     )
     kgui.write_text(kgui_source)
 
+    # AO_Radio and AO_Net are compiled out of this image (no C5 exists on the
+    # emulated SDIO bus), but kgui keeps two boot hooks and the OS-update ask
+    # outside every KODEOS_RADIO / KODEOS_NET guard, and the asset loader's
+    # network branches call the stream API the same way. The calls never run
+    # here; the macros keep the references linkable and make the update ask
+    # answer KODE_DENIED, the word AO_Net itself uses for "not taken".
+    kgui_ao = root / "components/kgui/kgui_ao.c"
+    if not kgui_ao.is_file():
+        raise SystemExit(f"not a KodeOS checkout: {kgui_ao} is missing")
+    ao_source = kgui_ao.read_text()
+    ao_source = once(
+        ao_source,
+        '#include "kaos.h"\n',
+        '''#include "kaos.h"
+
+/* Simulator overlay: the radio link and AO_Net are compiled out (no C5 on
+ * the emulated SDIO bus), so the boot gate, the BLE name push and the OS
+ * update ask collapse to no-ops. */
+#if !defined(CONFIG_KODEOS_RADIO) || !CONFIG_KODEOS_RADIO
+#define radio_boot_hold() ((void)0)
+#define radio_boot_release() ((void)0)
+#endif
+#if !defined(CONFIG_KODEOS_NET) || !CONFIG_KODEOS_NET
+#define net_http_ask(who, post, url, body, body_len, hdr, answer, cap) (KODE_DENIED)
+#endif
+''',
+        "kgui_ao radio-less boot hooks",
+    )
+    kgui_ao.write_text(ao_source)
+
+    kgui_assets = root / "components/kgui/kgui_assets.c"
+    if not kgui_assets.is_file():
+        raise SystemExit(f"not a KodeOS checkout: {kgui_assets} is missing")
+    assets_source = kgui_assets.read_text()
+    assets_source = once(
+        assets_source,
+        '#include "kui_kody_anims.h"\n',
+        '''#include "kui_kody_anims.h"
+
+/* Simulator overlay: AO_Net is compiled out (no C5 on the emulated SDIO
+ * bus), so the asset loader's network branches collapse to no-ops and the
+ * storage branches carry the load, as on a board with no network. */
+#if !defined(CONFIG_KODEOS_NET) || !CONFIG_KODEOS_NET
+#define net_stream_open_request(where, who) ((void)0)
+#define net_stream_close_request() ((void)0)
+#define net_stream_read_request() ((void)0)
+#define net_stream_buf(idx) ((const void *)0)
+#define net_stream_return(idx) ((void)0)
+#endif
+''',
+        "kgui_assets radio-less stream calls",
+    )
+    kgui_assets.write_text(assets_source)
+
     # The JPEG mirror depends on PPA/JPEG hardware and is not needed: the
     # screenshot verb already serializes the actual RGB565 framebuffer as BMP.
     defaults = root / "sdkconfig.defaults"
