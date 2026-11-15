@@ -20,8 +20,9 @@ Utiliser le simulateur directement dans le navigateur, sur téléphone ou ordina
 - Ce n'est pas encore une émulation complète de tous les composants du Kode Dot. Le contrôleur MIPI-DSI est contourné ; l'audio, la carte SD, l'IMU, le NFC/RFID, les vibrations, l'IR et plusieurs autres périphériques ne sont pas encore modélisés.
 - Le lecteur NFC ST25R3916B est compilé hors de l'image que l'émulateur démarre (`CONFIG_KODEOS_NFC=n`, posé par le patch headless) : sa sonde SPI2/IRQ ne se termine jamais dans ESP-EMU et figeait la marche de boot avant le démarrage de la console. Le matériel réel n'est pas concerné.
 - Le firmware ESP32-C5 est inclus dans l'image de stockage, mais le coprocesseur C5 n'est pas encore exécuté comme une seconde puce indépendante dans le navigateur.
+- La pile radio (Wi-Fi/BLE via le C5) est compilée hors de l'image que l'émulateur démarre (`CONFIG_KODEOS_RADIO=n`, posé par le patch headless) : esp-hosted réessayait `sdmmc_card_init` toutes les ~120 ms émulées sur le bus SDIO sans fin, ce qui bornait le firmware à une fraction du temps réel même sur un hôte natif. Le C5 reste maintenu en reset et le matériel réel n'est pas concerné.
 - La capacité PSRAM du modèle navigateur doit encore être vérifiée par rapport aux 32 Mo du matériel réel. Le framebuffer utilise moins d'un mégaoctet, mais cette différence peut compter pour des applications plus gourmandes.
-- La lecture du framebuffer est actuellement effectuée par snapshots complets quatre fois par seconde ; ce compromis privilégie la cohérence des pixels pendant que le pont mémoire est validé.
+- La lecture du framebuffer suit les bandes sales signalées par le firmware (`sequence`/`dirty_y1`/`dirty_y2`), reconverties en RGBA via une LUT RGB565 précalculée et publiées à chaque frame d'affichage (~60 Hz) ; le pont mémoire reste limité par la granularité de lecture de 4096 octets.
 
 ## Sources officielles et versions épinglées
 
