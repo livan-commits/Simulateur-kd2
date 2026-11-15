@@ -248,6 +248,9 @@ static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
         # firmware compute-bound at a fraction of real time even on a native
         # host. Radio off holds the C5 in reset; WiFi cannot work here anyway.
         ("CONFIG_KODEOS_RADIO", "n"),
+        # AO_TestDot (the E5 bench test) requires the radio link; there is no
+        # station on the other end of a browser, so its AO is dead weight here.
+        ("CONFIG_KODE_TEST_DOT", "n"),
     ):
         lines = [line for line in config.splitlines()
                  if not line.startswith(key + "=")
