@@ -134,10 +134,26 @@
     let timeSyncReady = false;
     let firstAssetsSeen = false;
     let framebufferSymbols = null;
-    let framebufferTimer = null;
+    let framebufferTimer = 0;
     let lastFramebufferSeq = -1;
     let hasFramebufferFrame = false;
     let framebufferErrorShown = false;
+    let scratchImage = null;
+    let scratchView = null;
+
+    // RGB565 -> RGBA8888, precomputed: one table lookup per pixel instead of
+    // the shift/mask/multiply chain, written through a Uint32Array view of the
+    // ImageData buffer (little-endian: 0xAABBGGRR renders as R,G,B,A bytes).
+    const RGB565_LUT = new Uint32Array(65536);
+    for (let value = 0; value < 65536; value++) {
+      const r = (value >>> 11) & 0x1f;
+      const g = (value >>> 5) & 0x3f;
+      const b = value & 0x1f;
+      RGB565_LUT[value] = (255 << 24)
+        | (Math.round((b * 255 + 15) / 31) << 16)
+        | (Math.round((g * 255 + 31) / 63) << 8)
+        | Math.round((r * 255 + 15) / 31);
+    }
 
     function setStatus(message, kind = "") {
       $("status").textContent = message;
@@ -190,6 +206,11 @@
       return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true);
     }
 
+    function pollLoop() {
+      pollFramebuffer();
+      if (running) framebufferTimer = requestAnimationFrame(pollLoop);
+    }
+
     function pollFramebuffer() {
       if (!running || !emu || !framebufferSymbols) return;
       try {
@@ -214,33 +235,29 @@
           return;
         }
 
-        const byteLength = (y2 - y1) * 410 * 2;
-        const pixels = new Uint8Array(byteLength);
+        if (!scratchImage) {
+          scratchImage = ctx.createImageData(410, 502);
+          scratchView = new Uint32Array(scratchImage.data.buffer);
+        }
+        const rowBytes = 410 * 2;
         const maxChunk = Number(framebufferSymbols.max_read_bytes || 4096);
-        for (let offset = 0; offset < byteLength; offset += maxChunk) {
-          const count = Math.min(maxChunk, byteLength - offset);
-          const chunk = emu.read_memory(framebuffer + y1 * 410 * 2 + offset, count);
+        let base = y1 * 410;
+        for (let offset = 0; offset < (y2 - y1) * rowBytes; offset += maxChunk) {
+          const count = Math.min(maxChunk, (y2 - y1) * rowBytes - offset);
+          const chunk = emu.read_memory(framebuffer + y1 * rowBytes + offset, count);
           if (!(chunk instanceof Uint8Array) || chunk.length !== count) {
-            throw new Error("Lecture PSRAM incomplète (" + offset + "/" + byteLength + " octets)");
+            throw new Error("Lecture PSRAM incomplète (" + offset + "/" + ((y2 - y1) * rowBytes) + " octets)");
           }
-          pixels.set(chunk, offset);
+          const pixelBase = base + (offset >> 1);
+          for (let i = 0, p = pixelBase; i < chunk.length; i += 2, p++) {
+            scratchView[p] = RGB565_LUT[chunk[i] | (chunk[i + 1] << 8)];
+          }
         }
 
         const seqAfterCopy = readMemoryWord(seqAddress);
         if (seqAfterCopy !== seqCheck || (seqAfterCopy & 1) !== 0) return;
 
-        const image = ctx.createImageData(410, y2 - y1);
-        for (let i = 0, p = 0; i < pixels.length; i += 2, p += 4) {
-          const rgb565 = pixels[i] | (pixels[i + 1] << 8);
-          const r = (rgb565 >>> 11) & 0x1f;
-          const g = (rgb565 >>> 5) & 0x3f;
-          const b = rgb565 & 0x1f;
-          image.data[p] = (r * 255 + 15) / 31;
-          image.data[p + 1] = (g * 255 + 31) / 63;
-          image.data[p + 2] = (b * 255 + 15) / 31;
-          image.data[p + 3] = 255;
-        }
-        ctx.putImageData(image, 0, y1);
+        ctx.putImageData(scratchImage, 0, y1, 0, 0, 410, y2 - y1);
         lastFramebufferSeq = seqAfterCopy;
         hasFramebufferFrame = true;
         framebufferErrorShown = false;
@@ -349,9 +366,11 @@
         });
         running = true;
         $("sync").disabled = false;
-        if (framebufferTimer) clearInterval(framebufferTimer);
-        // 20 Hz : réduit le délai maximal de rafraîchissement de 250 à 50 ms.
-        framebufferTimer = setInterval(pollFramebuffer, 50);
+        if (framebufferTimer) cancelAnimationFrame(framebufferTimer);
+        // Un passage par frame d'affichage (~60 Hz) : l'attente maximale tombe
+        // de 50 à ~17 ms, et un écran statique ne coûte qu'une lecture de mot
+        // par frame (la séquence n'a pas changé).
+        framebufferTimer = requestAnimationFrame(pollLoop);
       } catch (error) {
         setStatus("Échec du démarrage", "warn");
         log("[erreur] " + (error?.stack || error));
