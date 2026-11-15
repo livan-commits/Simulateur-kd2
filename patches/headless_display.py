@@ -243,6 +243,11 @@ static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
         # without end and the nfc_irq servicer would eat CPU 0 whole before
         # the console ever runs.
         ("CONFIG_KODEOS_NFC", "n"),
+        # No C5 on the emulated SDIO bus: esp-hosted retries sdmmc_card_init
+        # every ~120 emulated ms forever, and that storm keeps the emulated
+        # firmware compute-bound at a fraction of real time even on a native
+        # host. Radio off holds the C5 in reset; WiFi cannot work here anyway.
+        ("CONFIG_KODEOS_RADIO", "n"),
     ):
         lines = [line for line in config.splitlines()
                  if not line.startswith(key + "=")
