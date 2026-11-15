@@ -228,6 +228,82 @@ static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
 
     display.write_text(source)
 
+    # kgui_ao.c assumes the radio link is always compiled into kodeOS: its
+    # Wi-Fi and BLE row painters call helpers that live inside
+    # CONFIG_KODEOS_WIFI / CONFIG_KODEOS_BLE blocks. With the radio held in
+    # reset (no C5 exists in the emulator) those guards close, so the three
+    # unguarded call sites need radio-less spellings that read "Off", the
+    # same word kgui_radio_words() picks for a stack that is not running.
+    kgui = root / "components/kgui/kgui_ao.c"
+    if not kgui.is_file():
+        raise SystemExit(f"not a KodeOS checkout: {kgui} is missing")
+    kgui_source = kgui.read_text()
+    kgui_source = once(
+        kgui_source,
+        """        case GUI_MORE_WIFI: {
+            const char * const w = gui_radio_words(me, me->wifi_on, me->wifi_linked,
+                                                   me->wifi_reconnecting);
+            const char *say = me->wifi_ssid;
+
+            if ( NULL != w )
+            {
+                say = w;
+            }
+            (void)snprintf(out, cap, "%s", say);
+            break;
+        }""",
+        """        case GUI_MORE_WIFI: {
+#if CONFIG_KODEOS_WIFI
+            const char * const w = gui_radio_words(me, me->wifi_on, me->wifi_linked,
+                                                   me->wifi_reconnecting);
+            const char *say = me->wifi_ssid;
+
+            if ( NULL != w )
+            {
+                say = w;
+            }
+            (void)snprintf(out, cap, "%s", say);
+#else
+            (void)snprintf(out, cap, "%s", "Off");
+#endif
+            break;
+        }""",
+        "kgui Wi-Fi row without a radio",
+    )
+    kgui_source = once(
+        kgui_source,
+        """        case GUI_MORE_BLE: {
+            (void)snprintf(out, cap, "%s", gui_radio_words(me, me->ble_on, false, false));
+            break;
+        }""",
+        """        case GUI_MORE_BLE: {
+#if CONFIG_KODEOS_BLE
+            (void)snprintf(out, cap, "%s", gui_radio_words(me, me->ble_on, false, false));
+#else
+            (void)snprintf(out, cap, "%s", "Off");
+#endif
+            break;
+        }""",
+        "kgui BLE row without a radio",
+    )
+    kgui_source = once(
+        kgui_source,
+        """            if ( me->ble_name_owed && kode_up() )
+            {
+                me->ble_name_owed = false;
+                gui_ble_name_send(me);
+            }""",
+        """#if CONFIG_KODEOS_BLE
+            if ( me->ble_name_owed && kode_up() )
+            {
+                me->ble_name_owed = false;
+                gui_ble_name_send(me);
+            }
+#endif""",
+        "kgui BLE name push without a radio",
+    )
+    kgui.write_text(kgui_source)
+
     # The JPEG mirror depends on PPA/JPEG hardware and is not needed: the
     # screenshot verb already serializes the actual RGB565 framebuffer as BMP.
     defaults = root / "sdkconfig.defaults"
