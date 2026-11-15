@@ -381,6 +381,9 @@ static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
         # AO_TestDot (the E5 bench test) requires the radio link; there is no
         # station on the other end of a browser, so its AO is dead weight here.
         ("CONFIG_KODE_TEST_DOT", "n"),
+        # The pinned build defaults to -Os; every emulated instruction costs
+        # host cycles, so trade image size for -O2 speed.
+        ("CONFIG_COMPILER_OPTIMIZATION_PERFORMANCE", "y"),
     ):
         lines = [line for line in config.splitlines()
                  if not line.startswith(key + "=")
