@@ -23,6 +23,7 @@ Utiliser le simulateur directement dans le navigateur, sur téléphone ou ordina
 - La pile radio (Wi-Fi/BLE via le C5) est compilée hors de l'image que l'émulateur démarre (`CONFIG_KODEOS_RADIO=n`, posé par le patch headless) : esp-hosted réessayait `sdmmc_card_init` toutes les ~120 ms émulées sur le bus SDIO sans fin, ce qui bornait le firmware à une fraction du temps réel même sur un hôte natif. Le C5 reste maintenu en reset et le matériel réel n'est pas concerné.
 - La capacité PSRAM du modèle navigateur doit encore être vérifiée par rapport aux 32 Mo du matériel réel. Le framebuffer utilise moins d'un mégaoctet, mais cette différence peut compter pour des applications plus gourmandes.
 - La lecture du framebuffer suit les bandes sales signalées par le firmware (`sequence`/`dirty_y1`/`dirty_y2`), reconverties en RGBA via une LUT RGB565 précalculée et publiées à chaque frame d'affichage (~60 Hz) ; le pont mémoire reste limité par la granularité de lecture de 4096 octets.
+- L'émulateur WASM, la pompe de co-simulation, la carte virtuelle et le blit du framebuffer tournent dans un Web Worker dédié (`web/emu-worker.js`) avec un OffscreenCanvas : le fil principal de la page reste libre (journal, boutons, défilement) même quand l'émulation sature un cœur.
 
 ## Sources officielles et versions épinglées
 
