@@ -382,12 +382,18 @@ static void web_framebuffer_publish(uint8_t *front, int32_t y1, int32_t y2)
         # station on the other end of a browser, so its AO is dead weight here.
         ("CONFIG_KODE_TEST_DOT", "n"),
         # The pinned build defaults to -Os; every emulated instruction costs
-        # host cycles, so trade image size for -O2 speed.
+        # host cycles, so trade image size for -O2 speed. The SIZE line must
+        # go too: two y values in one Kconfig choice keep the first one.
         ("CONFIG_COMPILER_OPTIMIZATION_PERFORMANCE", "y"),
+        # One emulated core halves the scheduler and tick overhead the host
+        # pays for; nothing in KodeOS pins a task to core 1.
+        ("CONFIG_FREERTOS_UNICORE", "y"),
     ):
+        drop = (key, "CONFIG_COMPILER_OPTIMIZATION_SIZE") if key == \
+            "CONFIG_COMPILER_OPTIMIZATION_PERFORMANCE" else (key,)
         lines = [line for line in config.splitlines()
-                 if not line.startswith(key + "=")
-                 and line != f"# {key} is not set"]
+                 if not any(line.startswith(k + "=") or
+                            line == f"# {k} is not set" for k in drop)]
         lines.append(f"{key}={value}")
         config = "\n".join(lines) + "\n"
     defaults.write_text(config)
