@@ -18,6 +18,10 @@
 
 #define TAG "dragon"
 
+/** The render runs at DRG_SS times the glass in each axis, then shrinks:
+ *  four samples of work for one pixel of glass, far finer edges. */
+#define DRG_SS              2
+
 /** A tap shorter than this fires a burst; a longer press leads the dragon. */
 #define DRG_TAP_MS          300U
 
@@ -50,6 +54,10 @@ typedef struct {
     int32_t     stride;     /**< uint16_t between the canvas's rows.     */
     int32_t     w;          /**< The glass, in pixels.                   */
     int32_t     h;
+    uint16_t  * ss_fb;      /**< The working canvas DRG_SS times finer.  */
+    int32_t     ss_stride;  /**< uint16_t between its rows.              */
+    int32_t     ss_w;       /**< Its size, in pixels.                    */
+    int32_t     ss_h;
     dragon_t    dragon;     /**< The beast itself.                       */
     bool        fire_hold;  /**< TOP is being held: breathe without pause. */
     uint32_t    press_ms;   /**< When the finger came down.              */
@@ -104,6 +112,17 @@ static void ui_build(DragonAo * const me)
         return;
     }
 
+    me->ss_w     = me->w * DRG_SS;
+    me->ss_h     = me->h * DRG_SS;
+    me->ss_stride = me->ss_w;
+    me->ss_fb = (uint16_t *)heap_caps_malloc(
+        (size_t)me->ss_stride * (size_t)me->ss_h * sizeof(uint16_t),
+        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if ( me->ss_fb == NULL )
+    {
+        KLOG_W(TAG, "no room for the finer canvas: plain pixels then");
+    }
+
     dragon_init(&me->dragon, (int)me->w, (int)me->h);
     dragon_set_auto(&me->dragon, true);
 
@@ -117,6 +136,71 @@ static void ui_build(DragonAo * const me)
     lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(hint, lv_palette_main(LV_PALETTE_GREY), 0);
     lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -8);
+}
+
+/**
+ * @brief Shrink the fine canvas into the glass: every pixel averages the
+ *        DRG_SS x DRG_SS fine pixels above it.
+ *
+ * Only the rectangle that the last render touched is shrunk.
+ *
+ * @param me  The AO.
+ * @param sx1..sy2 The touched rectangle, in fine-canvas pixels, inclusive.
+ */
+static void downsample(DragonAo * const me, int sx1, int sy1, int sx2, int sy2)
+{
+    int gx1 = sx1 / DRG_SS;
+    int gy1 = sy1 / DRG_SS;
+    int gx2 = sx2 / DRG_SS;
+    int gy2 = sy2 / DRG_SS;
+    int gx, gy;
+
+    if ( gx1 < 0 )
+    {
+        gx1 = 0;
+    }
+    if ( gy1 < 0 )
+    {
+        gy1 = 0;
+    }
+    if ( gx2 > me->w - 1 )
+    {
+        gx2 = me->w - 1;
+    }
+    if ( gy2 > me->h - 1 )
+    {
+        gy2 = me->h - 1;
+    }
+
+    for ( gy = gy1; gy <= gy2; gy++ )
+    {
+        for ( gx = gx1; gx <= gx2; gx++ )
+        {
+            uint32_t r = 0;
+            uint32_t g = 0;
+            uint32_t b = 0;
+            int ox, oy;
+
+            for ( oy = 0; oy < DRG_SS; oy++ )
+            {
+                for ( ox = 0; ox < DRG_SS; ox++ )
+                {
+                    uint16_t c = me->ss_fb[(size_t)me->ss_stride
+                                               * (size_t)(gy * DRG_SS + oy)
+                                           + (size_t)(gx * DRG_SS + ox)];
+
+                    r += (uint32_t)(c >> 11) & 0x1FU;
+                    g += (uint32_t)(c >> 5) & 0x3FU;
+                    b += (uint32_t)c & 0x1FU;
+                }
+            }
+            r = (r + (uint32_t)DRG_SS * DRG_SS / 2U) / ((uint32_t)DRG_SS * DRG_SS);
+            g = (g + (uint32_t)DRG_SS * DRG_SS / 2U) / ((uint32_t)DRG_SS * DRG_SS);
+            b = (b + (uint32_t)DRG_SS * DRG_SS / 2U) / ((uint32_t)DRG_SS * DRG_SS);
+            me->fb[(size_t)me->stride * (size_t)gy + (size_t)gx]
+                = (uint16_t)((r << 11) | (g << 5) | b);
+        }
+    }
 }
 
 /**
@@ -136,10 +220,45 @@ static void frame(DragonAo * const me)
 
     dragon_step(&me->dragon, (float)dt_ms * 0.001f);
 
-    memset(me->fb, 0, (size_t)me->stride * (size_t)me->h * sizeof(uint16_t));
-    dr_dirty_reset();
-    dragon_render(&me->dragon, me->fb, me->stride, (int)me->w, (int)me->h);
-    dr_dirty_get(&x1, &y1, &x2, &y2);
+    if ( me->ss_fb != NULL )
+    {
+        memset(me->ss_fb, 0, (size_t)me->ss_stride * (size_t)me->ss_h
+                   * sizeof(uint16_t));
+        dr_dirty_reset();
+        dragon_render(&me->dragon, me->ss_fb, (int)me->ss_stride,
+                      (int)me->ss_w, (int)me->ss_h);
+        dr_dirty_get(&x1, &y1, &x2, &y2);
+        if ( x2 < x1 )
+        {
+            x1 = 0;
+            y1 = 0;
+            x2 = -1;
+            y2 = -1;
+        }
+        else
+        {
+            downsample(me, x1 - 1, y1 - 1, x2 + 1, y2 + 1);
+            x1 = x1 / DRG_SS;
+            y1 = y1 / DRG_SS;
+            x2 = (x2 + DRG_SS) / DRG_SS;
+            y2 = (y2 + DRG_SS) / DRG_SS;
+        }
+    }
+    else
+    {
+        memset(me->fb, 0, (size_t)me->stride * (size_t)me->h * sizeof(uint16_t));
+        dr_dirty_reset();
+        dragon_render(&me->dragon, me->fb, me->stride, (int)me->w, (int)me->h);
+        dr_dirty_get(&x1, &y1, &x2, &y2);
+    }
+
+    if ( x2 < x1 )
+    {
+        x1 = 0;
+        y1 = 0;
+        x2 = -1;
+        y2 = -1;
+    }
 
     if ( x1 < 0 )
     {

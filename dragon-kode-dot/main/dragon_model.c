@@ -272,7 +272,7 @@ void dragon_step(dragon_t *d, float dt)
         const dragon_pt_t *m = dragon_mouth(d);
         int n;
 
-        for ( n = 0; n < 4; n++ )
+        for ( n = 0; n < 5; n++ )
         {
             dragon_flame_t *f;
             float a;

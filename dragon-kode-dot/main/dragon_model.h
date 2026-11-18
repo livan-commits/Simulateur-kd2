@@ -13,10 +13,10 @@
 #include <stdint.h>
 
 /** How many rings the dragon's body has, head first. */
-#define DRAGON_SEG_N    26
+#define DRAGON_SEG_N    32
 
 /** The most flames alive at once. */
-#define DRAGON_FLAME_MAX 56
+#define DRAGON_FLAME_MAX 96
 
 /** How long a burst of fire lasts, seconds. */
 #define DRAGON_BURST_S  0.8f

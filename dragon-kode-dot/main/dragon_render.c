@@ -17,7 +17,7 @@
 #define M_PI 3.14159265358979f
 #endif
 
-static uint16_t BODY, BODY_HI, BODY_LO, HORN, EYE, MOUTH;
+static uint16_t BODY, BODY_HI, HORN, EYE, MOUTH;
 static uint16_t BODY_DARK, BELLY, MEMB, BONE, HORN_TIP, TEETH;
 static uint16_t FIRE_CORE, FIRE_MID, FIRE_OUT;
 
@@ -93,6 +93,15 @@ static void draw_wing(const dragon_t *d, uint16_t *fb, int stride, int w, int h,
     dr_aa_poly(fb, stride, w, h, xs, ys, 7, MEMB, 176U);
     dr_aa_poly(fb, stride, w, h, xs, ys, 5, dr_mix(MEMB, BODY, 4U), 58U);
 
+    for (f = 0; f < 2; f++) {
+        float vx = (tip_x[f] + tip_x[f + 1]) * 0.5f;
+        float vy = (tip_y[f] + tip_y[f + 1]) * 0.5f;
+
+        dr_taper(fb, stride, w, h,
+                 b->x + (vx - b->x) * 0.12f, b->y + (vy - b->y) * 0.12f,
+                 d->radius * 0.045f, vx, vy, d->radius * 0.02f,
+                 BONE, 150U);
+    }
     for (f = 0; f < 3; f++) {
         dr_taper(fb, stride, w, h, b->x, b->y, d->radius * (0.30f - 0.07f * (float)f),
                  tip_x[f], tip_y[f], d->radius * (0.11f - 0.02f * (float)f),
@@ -140,6 +149,35 @@ static void draw_body(const dragon_t *d, uint16_t *fb, int stride, int w, int h)
                      p->r * 0.52f, BELLY, 110U);
         dr_soft_disc(fb, stride, w, h, p->x - p->r * 0.22f, p->y - p->r * 0.34f,
                      p->r * 0.62f, BODY_HI, 92U);
+    }
+    for (i = 1; i < DRAGON_SEG_N - 1; i++) {
+        const dragon_pt_t *p = &pts[i];
+        float pvx = -sinf(p->a);
+        float pvy = cosf(p->a);
+        float wdt = p->r * ((i & 1) ? 0.34f : 0.46f);
+
+        dr_taper(fb, stride, w, h,
+                 p->x - pvx * wdt, p->y + p->r * 0.40f - pvy * wdt,
+                 p->r * 0.11f,
+                 p->x + pvx * wdt, p->y + p->r * 0.40f + pvy * wdt,
+                 p->r * 0.11f, BELLY, 170U);
+    }
+    for (i = 1; i < DRAGON_SEG_N - 2; i++) {
+        const dragon_pt_t *p = &pts[i];
+        float side = (i & 1) ? 1.0f : -1.0f;
+        float pvx = -sinf(p->a);
+        float pvy = cosf(p->a);
+
+        dr_soft_disc(fb, stride, w, h,
+                     p->x - cosf(p->a) * p->r * 0.30f + pvx * side * p->r * 0.42f,
+                     p->y - sinf(p->a) * p->r * 0.30f + pvy * side * p->r * 0.42f,
+                     p->r * 0.17f, BODY_DARK, 70U);
+    }
+    for (i = DRAGON_SEG_N - 9; i < DRAGON_SEG_N - 1; i += 2) {
+        const dragon_pt_t *p = &pts[i];
+
+        dr_soft_disc(fb, stride, w, h, p->x, p->y, p->r * 0.94f,
+                     BODY_DARK, 90U);
     }
     {
         const dragon_pt_t *p = &pts[5];
@@ -189,7 +227,6 @@ static void draw_body(const dragon_t *d, uint16_t *fb, int stride, int w, int h)
 
         dr_aa_poly(fb, stride, w, h, xs, ys, 6, MEMB, 176U);
     }
-    (void)BODY_LO;
 }
 
 static void draw_head(const dragon_t *d, uint16_t *fb, int stride, int w, int h)
@@ -215,6 +252,20 @@ static void draw_head(const dragon_t *d, uint16_t *fb, int stride, int w, int h)
                               ry + sinf(ra - s * 0.35f) * R_ * 0.20f };
 
         dr_aa_poly(fb, stride, w, h, xs, ys, 3, MEMB, 176U);
+    }
+    for (side = -1; side <= 1; side += 2) {
+        float s = (float)side;
+        float cx = hpt->x + ca * R_ * 0.15f + pa * s * R_ * 1.0f;
+        float cy = hpt->y + sa * R_ * 0.15f + pb * s * R_ * 1.0f;
+        float ba = hpt->a + (float)M_PI + s * 0.30f;
+        const float xs[3] = { cx,
+                              cx + cosf(ba + s * 0.42f) * R_ * 0.62f,
+                              cx + cosf(ba) * R_ * 0.30f };
+        const float ys[3] = { cy,
+                              cy + sinf(ba + s * 0.42f) * R_ * 0.62f,
+                              cy + sinf(ba) * R_ * 0.30f };
+
+        dr_aa_poly(fb, stride, w, h, xs, ys, 3, MEMB, 200U);
     }
     for (side = -1; side <= 1; side += 2) {
         float s = (float)side;
@@ -286,8 +337,16 @@ static void draw_head(const dragon_t *d, uint16_t *fb, int stride, int w, int h)
             const float fy[3] = { by, (by + ty) * 0.5f + (ty - by) * 0.12f, ty };
 
             dr_aa_poly(fb, stride, w, h, fx, fy, 3, TEETH,
-                       (uint8_t)(255U * (1.0f - k * 0.75f)));
+                       (uint8_t)(255U * (1.0f - k * 0.55f)));
         }
+    }
+    for (side = -1; side <= 1; side += 2) {
+        float s = (float)side;
+
+        dr_soft_disc(fb, stride, w, h,
+                     hpt->x + ca * R_ * 2.0f + pa * s * R_ * 0.30f,
+                     hpt->y + sa * R_ * 2.0f + pb * s * R_ * 0.30f,
+                     R_ * 0.055f, BODY_DARK, 150U);
     }
     {
         float nx = hpt->x + ca * R_ * 2.48f;
