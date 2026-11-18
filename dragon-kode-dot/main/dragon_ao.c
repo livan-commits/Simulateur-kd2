@@ -130,6 +130,7 @@ static void frame(DragonAo * const me)
     static uint32_t last_ms;
     uint32_t dt_ms = now - last_ms;
     int x1, y1, x2, y2;
+    static int prev_x1, prev_y1, prev_x2 = -1, prev_y2;
 
     last_ms = now;
 
@@ -143,10 +144,47 @@ static void frame(DragonAo * const me)
     if ( x1 < 0 )
     {
         x1 = 0;
+    }
+    if ( y1 < 0 )
+    {
         y1 = 0;
+    }
+    if ( x2 > me->w - 1 )
+    {
         x2 = me->w - 1;
+    }
+    if ( y2 > me->h - 1 )
+    {
         y2 = me->h - 1;
     }
+
+    /* The glass keeps every pixel of the last flush: what this round erased
+     * (the dragon where it was) is square in the previous area, what it drew
+     * is square in this one, so only the union is safe to flush again. */
+    if ( prev_x2 >= prev_x1 )
+    {
+        if ( prev_x1 < x1 )
+        {
+            x1 = prev_x1;
+        }
+        if ( prev_y1 < y1 )
+        {
+            y1 = prev_y1;
+        }
+        if ( prev_x2 > x2 )
+        {
+            x2 = prev_x2;
+        }
+        if ( prev_y2 > y2 )
+        {
+            y2 = prev_y2;
+        }
+    }
+    prev_x1 = (x2 >= x1) ? x1 : 0;
+    prev_y1 = y1;
+    prev_x2 = x2;
+    prev_y2 = (x2 >= x1) ? y2 : -1;
+
     if ( x1 <= x2 )
     {
         lv_area_t a;
