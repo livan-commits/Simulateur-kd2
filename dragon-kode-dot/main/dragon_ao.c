@@ -312,8 +312,8 @@ static QState Dragon_waiting(DragonAo * const me, QEvt const * const e)
 
             if ( kscreen_open(&me->screen, st) == KODE_OK )
             {
-                me->w = (int32_t)lv_display_get_hor_res(me->screen.disp);
-                me->h = (int32_t)lv_display_get_ver_res(me->screen.disp);
+                me->w = lv_display_get_horizontal_resolution(me->screen.disp);
+                me->h = lv_display_get_vertical_resolution(me->screen.disp);
                 ui_build(me);
                 KLOG_I(TAG, "panel up; the dragon wakes");
                 status = Q_TRAN(&Dragon_drawing);
