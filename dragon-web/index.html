@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dragon interactif — démo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background:
+        radial-gradient(ellipse at 70% 20%, #1a2340 0%, transparent 55%),
+        radial-gradient(ellipse at 20% 80%, #2a1030 0%, transparent 50%),
+        linear-gradient(180deg, #0b1020 0%, #050810 100%);
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: #e2e8f0;
+    }
+    #stage { position: fixed; inset: 0; display: block; touch-action: none; cursor: crosshair; }
+    .panel {
+      position: fixed; top: 16px; left: 16px;
+      padding: 14px 18px;
+      background: rgba(10, 14, 28, 0.6);
+      border: 1px solid rgba(255, 140, 60, 0.25);
+      border-radius: 12px;
+      backdrop-filter: blur(6px);
+      user-select: none;
+      pointer-events: none;
+    }
+    .panel h1 {
+      font-size: 18px;
+      letter-spacing: 1px;
+      background: linear-gradient(90deg, #ffb347, #ff6b3d);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 6px;
+    }
+    .panel p { font-size: 12px; line-height: 1.6; color: #94a3b8; }
+    .panel kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid #334155;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 11px;
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <div class="panel">
+    <h1>🐉 Dragon interactif</h1>
+    <p>
+      Déplacez la souris : le dragon vous suit.<br />
+      <b>Clic</b> ou <kbd>Espace</kbd> : crache de feu.<br />
+      <kbd>A</kbd> : vol automatique on/off.
+    </p>
+  </div>
+  <script src="dragon.js"></script>
+  <script>
+    const dragon = new FireDragon(document.getElementById('stage'), {
+      segments: 36,
+      radius: 15,
+      speed: 320,
+      autoFlight: true
+    });
+    dragon.start();
+
+    window.addEventListener('pointermove', (e) => {
+      dragon.setAutoFlight(false);
+      dragon.setTarget(e.clientX, e.clientY);
+    });
+    window.addEventListener('pointerdown', () => dragon.breathe(true));
+    window.addEventListener('pointerup', () => dragon.breathe(false));
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') { dragon.breathe(true); e.preventDefault(); }
+      if (e.key === 'a' || e.key === 'A') dragon.setAutoFlight(!dragon.isAutoFlight());
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') dragon.breathe(false);
+    });
+  </script>
+</body>
+</html>
